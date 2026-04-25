@@ -158,14 +158,16 @@ class DocumentChunk:                  # NEW
 ```
 POST /sessions/{session_id}/documents (multipart/form-data)
   1. 校验：session 归属、扩展名 .pdf、大小 ≤ 20MB
-  2. 写入 temp path：data/uploads/.tmp/{uuid4}.pdf（确保此目录存在）
-  3. 同步打开 temp 文件做轻量验证（<100ms）：
+  2. 一开始就分配 document_id = uuid4()
+     （temp 与正式路径共用同一 ID，方便日志追踪 + 调试）
+  3. 写入 temp path：data/uploads/.tmp/{document_id}.pdf
+     （确保 .tmp 目录存在）
+  4. 同步打开 temp 文件做轻量验证（<100ms）：
      a. pdfplumber.open(...) 失败 → unlink temp + 400 "无法打开 PDF（损坏？）"
      b. PDF 加密（open 抛 EncryptedPdfError）→ unlink temp + 400 "PDF 已加密"
      c. 取 page_count = len(pdf.pages)；page_count == 0 → unlink temp + 400 "空 PDF"
      注意：不在此处抽 extract_text() 检测"扫描版"——open 不抽文本，
      抽样会增加上传延迟且对带封面图的混合 PDF 误判。检测下放到 ingestion。
-  4. 分配 document_id = uuid4()
   5. INSERT documents (
        id=document_id, status=processing, page_count=N,
        progress_page=0, ingestion_started_at=now()
@@ -173,7 +175,7 @@ POST /sessions/{session_id}/documents (multipart/form-data)
      - INSERT 失败 → unlink temp + 500
   6. 原子 rename：os.replace(temp_path, data/uploads/{document_id}.pdf)
      - rename 失败（极少见，跨设备等）→ DELETE documents row + unlink temp + 500
-  7. 启动 asyncio.create_task(_ingest_with_timeout(doc_id))
+  7. 启动 asyncio.create_task(_ingest_with_timeout(document_id))
   8. 返回 {document_id, status: "processing", page_count: N}
 
 **清理保证**：任何上传失败路径都不会留下孤儿文件或孤儿 DB 行。
@@ -219,17 +221,31 @@ GET /sessions/{session_id}/documents/{document_id}/progress (SSE)
 ```python
 @app.on_event("startup")
 async def cleanup_stale_documents():
-    """把所有上次进程残留的 processing 标为 failed。
+    """把所有上次进程残留的 processing 标为 failed，并清掉它们的 partial chunks。
     任何重启都会重置卡死状态，与 'docker restart 历史保留' 验收兼容
     （已 ready 的文档完全不受影响）。
     """
-    await db.execute("""
-        UPDATE documents
-           SET status = 'failed',
-               error_message = '解析中断（服务重启）'
-         WHERE status = 'processing'
-    """)
+    async with db.transaction():
+        # 1) 先删 partial chunks（外键依赖）
+        #    这些 chunks 来自半路终止的 ingestion，没意义且占用 ivfflat 索引
+        await db.execute("""
+            DELETE FROM document_chunks
+             WHERE document_id IN (
+                 SELECT id FROM documents WHERE status = 'processing'
+             )
+        """)
+        # 2) 再标记 doc 为 failed，让用户看到"为什么没就绪"
+        await db.execute("""
+            UPDATE documents
+               SET status = 'failed',
+                   error_message = '解析中断（服务重启），请删除后重新上传',
+                   progress_page = 0
+             WHERE status = 'processing'
+        """)
 ```
+
+**为什么不删整个 document**：保留 `documents` 行让用户看到上传过的文件名 + 失败原因；
+按 §4 "删除文档"流程，用户主动删除时会 CASCADE 清理（已经无 chunks 了）+ 删 PDF 文件。
 
 **b) 单条 ingestion 软超时**（5 分钟）：
 ```python
@@ -394,12 +410,12 @@ TOOL_SCHEMA = {
 - 检索范围：`WHERE document_id IN (SELECT id FROM documents WHERE session_id=:session_id AND status='ready')`
 - 向量化 query → BGE → cosine 相似度（注：pgvector `<=>` 返回 *distance* = 1 - similarity，越小越相关）
 - 取 top-K（默认 16）→ 转成 similarity → **过滤 similarity < `MIN_SIMILARITY`** （配置项，默认 0.35 起点，需校准）
-  - 阈值放在 `config.yaml::retrieval.min_similarity`，可调
+  - 配置优先级：`MIN_SIMILARITY` env > `config.yaml::retrieval.min_similarity` (default 0.35)
   - **必须做校准**：见 §13 任务 T2.5 (`scripts/calibrate_threshold.py`)
     - 用挑战附带的腾讯年报 + 3 个相关 query（"总营收"/"业务板块"/"风险因素"）
       + 3 个无关 query（"今天天气"/"梅西踢哪个俱乐部"/"如何做红烧肉"）
-    - 输出每条 query 的 top-K 分数分布
-    - 根据 gap 调整 default 阈值并写回 config（dev 环节完成）
+    - 仅 stdout 输出每条 query 的 top-K 分数分布 + 建议阈值 + 一行 `MIN_SIMILARITY=` 示例
+    - **不**改 config 默认值；按需复制到 `.env`（避免本地调参泄漏 + 跨模型/PDF 漂移）
 - 过滤后保留前 `top_n`（默认 8）
 - 同文档同页连续 chunk 合并去重
 - 返回结构：
@@ -614,9 +630,11 @@ else:
 
 四个状态：
 1. **解析中**：黄色 row + 进度条 + "正在向量化第 45 / 89 页…"
-2. **就绪**：绿色 row + 页数 + ✓ 就绪徽章
-3. **失败**：红色 row + 错误说明 + "重试"链接
+2. **就绪**：绿色 row + 页数 + ✓ 就绪徽章 + 删除按钮（×）
+3. **失败**：红色 row + 错误说明 + 删除按钮（×）—— **不**提供 retry，需删除后重新上传（与 §6.2 B-FAILED 文案、§4 删除策略一致）
 4. **拖拽态**：紫色高亮 + "松开以上传 PDF"
+
+注：retry 路径未在 V1 范围内（避免与 ingestion 中断恢复、partial chunks 清理等耦合）。
 
 ### 8.4 Citation 卡片（"B 卡片式 + snippet 预览"）
 
@@ -671,7 +689,7 @@ else:
 | `tests/unit/test_ingestion_scanned.py` | 扫描版/纯图像 PDF：所有页 extract_text 为空 → status=failed + 描述性 error |
 | `tests/unit/test_search_documents.py` | 检索范围隔离（不同 session）/ 阈值过滤 / found=true/false 分支 / top-k 排序 / Citation DTO snippet 截断（≤480 + "…"） |
 | `tests/unit/test_conversation_engine.py` | 4 模板分发（A / B-EMPTY / B-PROCESSING / B-FAILED）+ citations 结构化绑定（B-* → []，A+found=false → []，A+found=true → chunks）+ **所有路径都发 citations event**（含 B-*） |
-| `tests/unit/test_startup_recovery.py` | 模拟 stale processing → startup 后被标 failed（带 error_message） |
+| `tests/unit/test_startup_recovery.py` | 模拟 stale processing（含若干 partial chunks）→ startup 后：(1) chunks 全删 (2) doc 被标 failed (3) error_message 含 `解析中断` |
 | `tests/unit/test_sse.py` | citations / progress 事件编码解码 |
 | `tests/e2e/test_doc_qa.py` | 用腾讯年报跑 4 类问题：事实/摘要/对比/边界；4 个 no-answer 子模板各断言对应子串 + citations=[] |
 
@@ -861,7 +879,8 @@ cd frontend && pnpm test            # 前端测试
 |---|---|---|---|---|
 | P3（先砍） | 多 PDF 同会话 | 一个会话支持多个 PDF | **单 PDF / 会话**（上传第二个时替换第一个） | -2h |
 | P3 | 详细进度文案 | "正在向量化第 45/89 页…" | 仅徽章 + 转圈 | -1.5h |
-| P3 | 失败重试链接 | 红 row + 重试按钮 | 红 row + "请删除后重新上传" | -0.5h |
+<!-- 已从范围中移除：失败态不提供 retry，统一为"删除后重新上传"。详见 §8.3 -->
+
 | P3 | 前端组件单测 | citation-card / upload-progress 测试 | 跳过 | -1.5h |
 | P2 | 启动恢复 hook | startup 扫 stale processing | 跳过（接受 dev 重启可能卡死） | -0.5h |
 | P2 | ingestion 5min 超时 | asyncio.wait_for 包装 | 跳过 | -0.5h |
