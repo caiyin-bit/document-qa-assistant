@@ -15,8 +15,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 async def db_session() -> AsyncSession:
     from src.db.session import get_engine
     from sqlalchemy.ext.asyncio import async_sessionmaker
+    from sqlalchemy import text
     engine = get_engine()
     Sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
     async with Sessionmaker() as session:
-        yield session
-        await session.rollback()
+        try:
+            yield session
+        finally:
+            # Test isolation: clear all data tables. CASCADE handles FK chain.
+            # Order: chunks → documents → messages → sessions → users (children first)
+            # but TRUNCATE ... CASCADE cuts the dependency.
+            await session.execute(text(
+                "TRUNCATE TABLE document_chunks, documents, messages, sessions, users "
+                "RESTART IDENTITY CASCADE"
+            ))
+            await session.commit()
