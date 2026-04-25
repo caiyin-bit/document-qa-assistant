@@ -85,6 +85,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # vector extension is intentionally not dropped (may be shared / pre-installed)
     op.drop_table("document_chunks")
     op.drop_table("documents")
     op.drop_table("messages")

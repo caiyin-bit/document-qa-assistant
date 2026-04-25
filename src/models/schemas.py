@@ -4,11 +4,11 @@ from uuid import UUID, uuid4
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
-    BIGINT, JSON, Column, DateTime, Enum as SAEnum, ForeignKey, Integer,
+    BIGINT, DateTime, Enum as SAEnum, ForeignKey, Integer,
     String, Text, func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
 class Base(DeclarativeBase):
@@ -82,5 +82,5 @@ class DocumentChunk(Base):
     page_no: Mapped[int] = mapped_column(Integer)
     chunk_idx: Mapped[int] = mapped_column(Integer)
     content: Mapped[str] = mapped_column(Text)
-    content_embedding = mapped_column(Vector(1024))
+    content_embedding = mapped_column(Vector(1024), nullable=False)
     token_count: Mapped[int] = mapped_column(Integer)
