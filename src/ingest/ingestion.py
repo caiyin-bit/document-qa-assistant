@@ -18,7 +18,17 @@ async def _mark_failed_and_clean(doc_id, error_message: str, *, mem) -> None:
         status=DocumentStatus.failed,
         error_message=error_message[:500],
         progress_page=0,
+        progress_phase=None,
     )
+
+
+# Phase tags written to documents.progress_phase. The progress SSE surfaces
+# these to the frontend so the user can see *why* an ingestion is taking time
+# (model load is the slowest stage on first run).
+PHASE_LOADING = "loading"      # importing torch / loading BGE into memory
+PHASE_EXTRACTING = "extracting"  # pdfplumber.extract_text on a page
+PHASE_EMBEDDING = "embedding"    # BGE encode_batch on a page's chunks
+PHASE_INSERTING = "inserting"    # bulk INSERT chunks into pgvector
 
 
 async def _ingest_document(
@@ -27,13 +37,26 @@ async def _ingest_document(
     chunker: Callable[[str, int], list],
 ) -> None:
     """Run full ingestion. On any error, calls _mark_failed_and_clean.
-    chunker returns list of {content, page_no} dicts or Chunk objects;
-    this function adds chunk_idx + embedding fields.
+
+    Updates documents.progress_phase at every stage so the SSE polling on
+    /progress can surface granular UI states ("loading" → "extracting" →
+    "embedding" → "inserting") rather than a single "ingesting" that often
+    looks frozen during BGE encode.
     """
     chunk_idx = 0
     total_chunks = 0
     try:
+        # Mark "loading" up-front so the UI shows a non-frozen state during
+        # the first BGE call (which lazily loads the ~1GB model into memory
+        # — can take 15-30s on first ingestion).
+        await mem.update_document(doc_id, progress_phase=PHASE_LOADING)
+
         for page_no, text in iter_pages(path):
+            await mem.update_document(
+                doc_id,
+                progress_phase=PHASE_EXTRACTING,
+                progress_page=page_no,
+            )
             chunks = chunker(text, page_no=page_no)
             if chunks:
                 # Normalize: support both dict and Chunk dataclass
@@ -41,7 +64,10 @@ async def _ingest_document(
                     c["content"] if isinstance(c, dict) else c.content
                     for c in chunks
                 ]
+                await mem.update_document(doc_id, progress_phase=PHASE_EMBEDDING)
                 embeddings = embedder.embed_batch(contents)
+
+                await mem.update_document(doc_id, progress_phase=PHASE_INSERTING)
                 rows = []
                 for i, (c, emb) in enumerate(zip(chunks, embeddings)):
                     content = c["content"] if isinstance(c, dict) else c.content
@@ -55,7 +81,6 @@ async def _ingest_document(
                 await mem.bulk_insert_chunks(doc_id, rows)
                 chunk_idx += len(chunks)
                 total_chunks += len(chunks)
-            await mem.update_document(doc_id, progress_page=page_no)
 
         if total_chunks == 0:
             await _mark_failed_and_clean(
@@ -64,7 +89,9 @@ async def _ingest_document(
             )
             return
 
-        await mem.update_document(doc_id, status=DocumentStatus.ready)
+        await mem.update_document(
+            doc_id, status=DocumentStatus.ready, progress_phase=None,
+        )
     except Exception as e:
         await _mark_failed_and_clean(doc_id, str(e), mem=mem)
         log.exception("ingestion failed for %s", doc_id)

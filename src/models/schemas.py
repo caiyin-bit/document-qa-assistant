@@ -67,6 +67,7 @@ class Document(Base):
     status: Mapped[str] = mapped_column(SAEnum(DocumentStatus, name="document_status"), default=DocumentStatus.processing)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     progress_page: Mapped[int] = mapped_column(Integer, default=0)
+    progress_phase: Mapped[str | None] = mapped_column(String(20), nullable=True)
     uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     ingestion_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

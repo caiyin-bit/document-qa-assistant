@@ -146,6 +146,15 @@ def make_router(deps: ChatDependencies) -> APIRouter:
                 status_code=404,
                 detail="session not found or not owned by current user",
             )
+        # Refuse if any doc is still ingesting — otherwise cascade delete
+        # would remove the documents row out from under the running ingestion
+        # task and crash it on FK violation. Mirrors delete_document's guard.
+        counts = await memory.count_documents_by_status(session_id)
+        if counts.get("processing", 0) > 0:
+            raise HTTPException(
+                status_code=409,
+                detail="会话内有文档正在解析中，请等待完成或解析超时（≤5 分钟）后再删除",
+            )
         doc_ids = await memory.delete_session(session_id)
         for did in doc_ids:
             try:
