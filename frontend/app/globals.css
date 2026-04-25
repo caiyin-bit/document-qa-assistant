@@ -128,3 +128,102 @@
     @apply font-sans;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────
+ * App-level design tokens (IKB Klein Blue + dark/light themes).
+ * Namespaced --app-* to avoid collision with shadcn's @theme tokens.
+ * Spec: docs/superpowers/specs/2026-04-25-ikb-dark-light-redesign.md
+ * ───────────────────────────────────────────────────────────────── */
+
+:root,
+[data-theme="light"] {
+  /* surfaces */
+  --app-bg: #FFFFFF;
+  --app-bg-sidebar: #FAFAFA;
+  --app-bg-docs: #F8F8F8;
+  --app-surface-elevated: #F4F4F5;
+  --app-surface-input: #FFFFFF;
+
+  /* borders */
+  --app-border-subtle: #E4E4E7;
+  --app-border-divider: #E4E4E7;
+
+  /* text */
+  --app-text-primary: #18181B;
+  --app-text-secondary: #52525B;
+  --app-text-tertiary: #71717A;
+  --app-text-faint: #A1A1AA;
+  --app-text-on-accent: #FFFFFF;
+
+  /* IKB accent */
+  --app-accent: #002FA7;
+  --app-accent-bg: #DBEAFE;
+  --app-accent-bg-dim: #EFF6FF;
+  --app-accent-border: #BFDBFE;
+  --app-accent-text-bright: #002FA7;
+  --app-accent-text-light: #002FA7;
+
+  /* document type (red, same in both themes) */
+  --app-pdf-badge-bg: #DC2626;
+  --app-pdf-badge-fg: #FFFFFF;
+
+  /* status: ready */
+  --app-status-ok-bg: #DCFCE7;
+  --app-status-ok-fg: #16A34A;
+
+  /* status: processing */
+  --app-status-warn-bg: #FEF3C7;
+  --app-status-warn-fg: #B45309;
+  --app-status-warn-card-border: #FCD34D;
+
+  /* status: failed */
+  --app-status-err-bg: #FEE2E2;
+  --app-status-err-fg: #DC2626;
+  --app-status-err-card-border: #FCA5A5;
+}
+
+[data-theme="dark"] {
+  /* surfaces */
+  --app-bg: #0A0A0A;
+  --app-bg-sidebar: #0E0E0E;
+  --app-bg-docs: #0B0B0B;
+  --app-surface-elevated: #141414;
+  --app-surface-input: #0F0F0F;
+
+  /* borders */
+  --app-border-subtle: #1F1F1F;
+  --app-border-divider: #1A1A1A;
+
+  /* text */
+  --app-text-primary: #E4E4E7;
+  --app-text-secondary: #A1A1AA;
+  --app-text-tertiary: #71717A;
+  --app-text-faint: #52525B;
+  --app-text-on-accent: #FFFFFF;
+
+  /* IKB accent */
+  --app-accent: #002FA7;
+  --app-accent-bg: #001A4A;
+  --app-accent-bg-dim: #00103D;
+  --app-accent-border: #1E3A8A;
+  --app-accent-text-bright: #6FA1F0;
+  --app-accent-text-light: #93C5FD;
+
+  /* document type */
+  --app-pdf-badge-bg: #DC2626;
+  --app-pdf-badge-fg: #FFFFFF;
+
+  /* status: ready */
+  --app-status-ok-bg: #0A2118;
+  --app-status-ok-fg: #22C55E;
+
+  /* status: processing */
+  --app-status-warn-bg: #2A1A02;
+  --app-status-warn-fg: #F59E0B;
+  --app-status-warn-card-border: #3F2A0E;
+
+  /* status: failed */
+  --app-status-err-bg: #2A0E11;
+  --app-status-err-fg: #EF4444;
+  --app-status-err-card-border: #3F0E1A;
+}
