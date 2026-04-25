@@ -19,7 +19,6 @@ from src.api.chat import ChatDependencies, ConvSettings, make_router
 from src.api.documents import make_documents_router
 from src.config import Config, load_config
 from src.core.persona_loader import PersonaLoader
-from src.core.summarizer import Summarizer
 from src.db.session import make_engine, make_sessionmaker
 from src.embedding.bge_embedder import BgeEmbedder
 from src.llm.kimi_client import KimiClient
@@ -63,7 +62,6 @@ def _production_deps() -> ChatDependencies:
     llm = KimiClient.from_config(
         base_url=cfg.llm.base_url, api_key=cfg.llm.api_key, model_id=cfg.llm.model_id
     )
-    summarizer = Summarizer(llm=llm)
     settings = ConvSettings(
         max_tool_iterations=cfg.conversation.max_tool_iterations,
         compress_trigger_threshold=cfg.memory.compress_trigger_threshold,
@@ -79,7 +77,6 @@ def _production_deps() -> ChatDependencies:
         persona=persona,
         embedder=embedder,
         llm=llm,
-        summarizer=summarizer,
         default_user_id=cfg.app_user.default_user_id,
         settings=settings,
         min_similarity=min_similarity,

@@ -60,7 +60,6 @@ class ChatDependencies:
     persona: PersonaLoader
     embedder: object  # duck-typed: must expose .embed(text) -> list[float]
     llm: object       # duck-typed: must expose async chat(messages, tools=...)
-    summarizer: object  # duck-typed: must expose async summarize(prior, msgs)
     default_user_id: UUID
     settings: ConvSettings
     min_similarity: float = 0.35

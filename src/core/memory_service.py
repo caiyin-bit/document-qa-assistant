@@ -188,15 +188,3 @@ class MemoryService:
             for r in rows
             if float(r["similarity"]) >= min_similarity
         ]
-
-
-# Keep MessageRecord dataclass for summarizer.py compatibility.
-# This may become deprecated in T12 when summarizer is fully wired.
-from dataclasses import dataclass, field
-
-
-@dataclass
-class MessageRecord:
-    role: str
-    content: str
-    tool_calls: dict | None = None
