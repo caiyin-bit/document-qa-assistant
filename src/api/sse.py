@@ -47,6 +47,10 @@ class StreamEvent:
     def error(cls, message: str, code: str = "error") -> "StreamEvent":
         return cls(type="error", data={"message": message, "code": code})
 
+    @classmethod
+    def citations(cls, chunks: list[dict]) -> "StreamEvent":
+        return cls(type="citations", data={"chunks": chunks})
+
 
 def encode_sse(event: StreamEvent) -> bytes:
     """Encode one StreamEvent as an SSE wire frame per W3C spec."""

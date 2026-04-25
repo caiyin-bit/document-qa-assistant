@@ -85,3 +85,23 @@ async def test_to_sse_bytes_cancelled_error_propagates_and_closes_events():
         await consume()
     # Even though cancelled, finally must have aclose'd the inner gen
     assert closed["called"] is True
+
+
+def test_citations_event_encoding():
+    chunks = [
+        {"doc_id": "abc", "filename": "腾讯.pdf", "page_no": 12,
+         "snippet": "营业收入 6,605 亿…", "score": 0.83},
+    ]
+    ev = StreamEvent.citations(chunks=chunks)
+    raw = encode_sse(ev)
+    assert raw.startswith(b"event: citations\n")
+    payload = raw.split(b"data: ", 1)[1].strip()
+    parsed = json.loads(payload)
+    assert parsed["chunks"][0]["page_no"] == 12
+
+
+def test_citations_event_empty_chunks():
+    ev = StreamEvent.citations(chunks=[])
+    raw = encode_sse(ev)
+    assert b"event: citations" in raw
+    assert b'"chunks": []' in raw or b'"chunks":[]' in raw
