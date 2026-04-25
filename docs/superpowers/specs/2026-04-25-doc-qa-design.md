@@ -196,15 +196,40 @@ POST /sessions/{session_id}/documents (multipart/form-data)
 
     # 扫描版/无文本检测：所有页都跑完了但没产出任何 chunk
     if total_chunks == 0:
-      await db.update_document(doc_id, status='failed',
-        error_message='未能从 PDF 中提取任何文本（疑似扫描版或纯图像 PDF）')
+      await _mark_failed_and_clean(doc_id,
+        '未能从 PDF 中提取任何文本（疑似扫描版或纯图像 PDF）')
       return
 
     await db.update_document(doc_id, status='ready')
   except Exception as e:
-    await db.update_document(doc_id, status='failed',
-                              error_message=str(e)[:500])
+    await _mark_failed_and_clean(doc_id, str(e)[:500])
     log.exception("ingestion failed for %s", doc_id)
+
+
+async def _mark_failed_and_clean(doc_id, error_message):
+  """统一收口：清掉 partial chunks → 标 failed。
+  调用方：ingestion 异常 / total_chunks==0 / asyncio.wait_for 超时。
+  与 startup hook 的清理策略保持一致（详见'启动恢复'小节）。
+  """
+  async with db.transaction():
+    # 1) DELETE 已插入的 partial chunks（避免 ivfflat 索引垃圾）
+    #    total_chunks==0 分支这里 DELETE 0 行，仍走相同路径保持一致性
+    await db.execute(
+      "DELETE FROM document_chunks WHERE document_id = :doc_id",
+      {"doc_id": doc_id}
+    )
+    # 2) 标 failed，保留 document 行让用户看到失败原因
+    await db.update_document(doc_id, status='failed',
+                              error_message=error_message,
+                              progress_page=0)
+
+
+async def _ingest_with_timeout(doc_id):
+  """5min 软超时；超时也走 _mark_failed_and_clean。"""
+  try:
+    await asyncio.wait_for(_ingest_document(doc_id), timeout=300)
+  except asyncio.TimeoutError:
+    await _mark_failed_and_clean(doc_id, '解析超时（>5 分钟）')
 
 GET /sessions/{session_id}/documents/{document_id}/progress (SSE)
   - 每 500ms 查询 documents 表，推送：
@@ -247,16 +272,7 @@ async def cleanup_stale_documents():
 **为什么不删整个 document**：保留 `documents` 行让用户看到上传过的文件名 + 失败原因；
 按 §4 "删除文档"流程，用户主动删除时会 CASCADE 清理（已经无 chunks 了）+ 删 PDF 文件。
 
-**b) 单条 ingestion 软超时**（5 分钟）：
-```python
-# 在 _ingest_document 外层包 asyncio.wait_for
-async def _ingest_with_timeout(doc_id):
-    try:
-        await asyncio.wait_for(_ingest_document(doc_id), timeout=300)
-    except asyncio.TimeoutError:
-        await db.update_document(doc_id, status='failed',
-                                  error_message='解析超时（>5 分钟）')
-```
+**b) 单条 ingestion 软超时**（5 分钟）：实现见上一节 `_ingest_with_timeout`，超时也走 `_mark_failed_and_clean`，与 except / total_chunks==0 路径共用清理逻辑。
 
 这两个机制保证：
 - 重启不留卡死的 processing
@@ -366,7 +382,10 @@ def _split_oversized(text: str, max_tokens: int, overlap: int) -> Iterator[str]:
         else:
             if buf.strip():
                 yield buf.strip()
-            buf = take_tail_tokens(buf, overlap) + s
+            # 候选：tail + s。若超 max（s 接近 max + overlap 80 → 总超）→ 退化为不带 overlap
+            # （s 已知 ≤ max_tokens，所以 buf=s 一定合法）
+            candidate = take_tail_tokens(buf, overlap) + s
+            buf = candidate if token_count(candidate) <= max_tokens else s
     if buf.strip():
         yield buf.strip()
 ```
@@ -379,6 +398,7 @@ def _split_oversized(text: str, max_tokens: int, overlap: int) -> Iterator[str]:
 5. 单段 > 500（连续表格行/长公式） → `_split_oversized` 切分，每片 ≤ 500
 6. tail+para 仍 > 500（罕见极端）→ 退化路径
 7. 单句 > 500 → 滑窗硬切，无信息丢失
+8. `_split_oversized` 候选超限退化：构造句子序列使 `tail(80)+s` > 500（如 s=480 token），断言生成的所有片段 ≤ 500
 
 ---
 
@@ -489,8 +509,8 @@ FROM documents WHERE session_id = :sid
 | 子模板 | 触发条件 | 固定回答 | 断言子串 |
 |---|---|---|---|
 | B-EMPTY | 无任何 documents 记录 | `请先上传 PDF 文档以开始提问。` | `请先上传` |
-| B-PROCESSING | 仅 processing（无 ready） | `文档正在解析中，请稍候再提问。` | `正在解析中` |
-| B-FAILED | 仅 failed（无 ready/processing） | `已上传的文档解析失败，请删除后重新上传。` | `解析失败` |
+| B-PROCESSING | 无 ready 且至少一份 processing（可能同时存在 failed） | `文档正在解析中，请稍候再提问。` | `正在解析中` |
+| B-FAILED | 无 ready、无 processing、至少一份 failed | `已上传的文档解析失败，请删除后重新上传。` | `解析失败` |
 
 **实现**：B-* 模板不走 LLM、不调 tool，`_prepare_round` 直接返回 fixed response，节省 round-trip 和 token。SSE 流统一发 `text → citations(chunks=[]) → done` 三个事件（详见 §7），前端无需分支判断。
 
@@ -687,6 +707,7 @@ else:
 | `tests/unit/test_api_documents.py` | 上传 happy / 大文件拒绝 / 非 PDF 拒绝 / 加密 PDF 拒绝 / 空 PDF 拒绝 / 校验失败时 temp 文件被清理（无孤儿） / 状态轮询 |
 | `tests/unit/test_delete_document.py` | DELETE：ready/failed 成功（cascade chunks、文件移除、messages.citations 保留不变）；processing 返回 409；不存在 doc 返回 404 |
 | `tests/unit/test_ingestion_scanned.py` | 扫描版/纯图像 PDF：所有页 extract_text 为空 → status=failed + 描述性 error |
+| `tests/unit/test_ingestion_failure_cleanup.py` | ingestion 中途异常（mock BGE 在第 50 页抛错）→ partial chunks 全删 + status=failed + error_message；超时同样路径 |
 | `tests/unit/test_search_documents.py` | 检索范围隔离（不同 session）/ 阈值过滤 / found=true/false 分支 / top-k 排序 / Citation DTO snippet 截断（≤480 + "…"） |
 | `tests/unit/test_conversation_engine.py` | 4 模板分发（A / B-EMPTY / B-PROCESSING / B-FAILED）+ citations 结构化绑定（B-* → []，A+found=false → []，A+found=true → chunks）+ **所有路径都发 citations event**（含 B-*） |
 | `tests/unit/test_startup_recovery.py` | 模拟 stale processing（含若干 partial chunks）→ startup 后：(1) chunks 全删 (2) doc 被标 failed (3) error_message 含 `解析中断` |
