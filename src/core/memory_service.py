@@ -42,6 +42,40 @@ class MemoryService:
         )
         return result.scalars().all()
 
+    async def list_sessions_with_titles(
+        self, user_id: UUID, limit: int = 50,
+    ) -> list[tuple[Session, str | None]]:
+        """Return (session, first_user_message_content) for each session.
+        Single round-trip via correlated subquery — used to render meaningful
+        sidebar titles without a dedicated `title` column on sessions."""
+        sql = text(
+            """
+            SELECT s.id AS sid, s.created_at, s.last_active_at,
+                   s.summary, s.summary_until_message_id, s.user_id,
+                   (SELECT m.content FROM messages m
+                    WHERE m.session_id = s.id AND m.role = 'user'
+                    ORDER BY m.id LIMIT 1) AS first_user_msg
+            FROM sessions s
+            WHERE s.user_id = :uid
+            ORDER BY s.last_active_at DESC
+            LIMIT :lim
+            """
+        )
+        result = await self.db.execute(sql, {"uid": str(user_id), "lim": limit})
+        rows = result.mappings().all()
+        out: list[tuple[Session, str | None]] = []
+        for r in rows:
+            sess = Session(
+                id=r["sid"],
+                user_id=r["user_id"],
+                created_at=r["created_at"],
+                last_active_at=r["last_active_at"],
+                summary=r["summary"],
+                summary_until_message_id=r["summary_until_message_id"],
+            )
+            out.append((sess, r["first_user_msg"]))
+        return out
+
     async def get_session(self, session_id: UUID) -> Session | None:
         return await self.db.get(Session, session_id)
 
@@ -122,6 +156,27 @@ class MemoryService:
         # CASCADE handles document_chunks; messages.citations preserved (JSONB).
         await self.db.execute(delete(Document).where(Document.id == document_id))
         await self.db.commit()
+
+    async def delete_session(self, session_id: UUID) -> list[UUID]:
+        """Cascade delete a session: messages → documents (chunks via FK
+        CASCADE) → session. Returns the deleted document IDs so the API
+        layer can unlink their PDFs from disk.
+        """
+        result = await self.db.execute(
+            select(Document.id).where(Document.session_id == session_id)
+        )
+        doc_ids: list[UUID] = [r[0] for r in result.all()]
+        await self.db.execute(
+            delete(Message).where(Message.session_id == session_id)
+        )
+        await self.db.execute(
+            delete(Document).where(Document.session_id == session_id)
+        )
+        await self.db.execute(
+            delete(Session).where(Session.id == session_id)
+        )
+        await self.db.commit()
+        return doc_ids
 
     async def count_documents_by_status(self, session_id: UUID) -> dict[str, int]:
         result = await self.db.execute(
