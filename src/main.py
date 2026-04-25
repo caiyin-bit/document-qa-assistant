@@ -85,4 +85,15 @@ def make_app_default() -> FastAPI:
     """Build the production app on demand. Raises immediately if config is
     invalid — no silent fallback. Use with `uvicorn --factory`.
     """
-    return create_app(_production_deps())
+    deps = _production_deps()
+    app = create_app(deps)
+
+    @app.on_event("startup")
+    async def _cleanup_stale_documents_on_startup():
+        from src.ingest.ingestion import cleanup_stale_documents
+        from src.core.memory_service import MemoryService
+        async with deps.sessionmaker() as db:
+            mem = MemoryService(db)
+            await cleanup_stale_documents(mem)
+
+    return app
