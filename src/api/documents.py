@@ -1,0 +1,114 @@
+"""Documents API. Spec §4 (upload + temp/atomic rename + cleanup invariants)."""
+import asyncio
+import logging
+import os
+from pathlib import Path
+from uuid import UUID, uuid4
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from src.core.memory_service import MemoryService, DEMO_USER_ID
+from src.db.session import get_db, _get_default_sm
+from src.embedding.bge_embedder import BgeEmbedder
+from src.ingest.chunker import chunk
+from src.ingest.ingestion import _ingest_with_timeout
+from src.ingest.pdf_parser import iter_pages, open_pdf_meta, PdfValidationError
+
+log = logging.getLogger(__name__)
+
+UPLOADS_DIR = Path("data/uploads")
+TMP_DIR = UPLOADS_DIR / ".tmp"
+
+_UPLOAD_MAX_BYTES = 20 * 1024 * 1024
+_INGESTION_TIMEOUT = 300.0
+
+
+async def _run_ingestion(
+    document_id, *, path: Path, sm: async_sessionmaker, embedder, timeout: float
+) -> None:
+    """Launch ingestion in a fresh DB session (separate from the request session)."""
+    async with sm() as db:
+        mem = MemoryService(db)
+        await _ingest_with_timeout(
+            document_id, path=path, mem=mem, embedder=embedder,
+            iter_pages=iter_pages, chunker=chunk, timeout=timeout,
+        )
+
+
+def make_documents_router(*, embedder: BgeEmbedder) -> APIRouter:
+    router = APIRouter()
+
+    @router.post("/sessions/{session_id}/documents")
+    async def upload_document(
+        session_id: UUID,
+        file: UploadFile = File(...),
+        db: AsyncSession = Depends(get_db),
+    ):
+        mem = MemoryService(db)
+
+        # 1) session ownership
+        sess = await mem.get_session(session_id)
+        if sess is None or sess.user_id != DEMO_USER_ID:
+            raise HTTPException(404, "session not found")
+
+        # validate extension
+        if not (file.filename or "").lower().endswith(".pdf"):
+            raise HTTPException(400, "只支持 .pdf 扩展名")
+
+        # 2) document_id assigned upfront
+        document_id = uuid4()
+
+        # 3) write temp
+        TMP_DIR.mkdir(parents=True, exist_ok=True)
+        UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+        temp_path = TMP_DIR / f"{document_id}.pdf"
+        body = await file.read()
+        if len(body) > _UPLOAD_MAX_BYTES:
+            raise HTTPException(400, "文件超过 20 MB 限制")
+        temp_path.write_bytes(body)
+
+        # 4) validate PDF
+        try:
+            meta = open_pdf_meta(temp_path)
+        except PdfValidationError as e:
+            temp_path.unlink(missing_ok=True)
+            raise HTTPException(400, str(e))
+
+        # 5) INSERT documents row
+        try:
+            doc = await mem.create_document(
+                document_id=document_id,
+                user_id=DEMO_USER_ID,
+                session_id=session_id,
+                filename=file.filename,
+                page_count=meta.page_count,
+                byte_size=len(body),
+            )
+        except Exception:
+            temp_path.unlink(missing_ok=True)
+            raise HTTPException(500, "数据库写入失败")
+
+        # 6) atomic rename
+        final_path = UPLOADS_DIR / f"{document_id}.pdf"
+        try:
+            os.replace(temp_path, final_path)
+        except Exception:
+            await mem.delete_document(document_id)
+            temp_path.unlink(missing_ok=True)
+            raise HTTPException(500, "文件落盘失败")
+
+        # 7) launch background ingestion with its own DB session
+        asyncio.create_task(_run_ingestion(
+            document_id, path=final_path, sm=_get_default_sm(), embedder=embedder,
+            timeout=_INGESTION_TIMEOUT,
+        ))
+
+        # 8) return
+        return {
+            "document_id": str(document_id),
+            "status": doc.status.value if hasattr(doc.status, "value") else doc.status,
+            "page_count": doc.page_count,
+        }
+
+    return router

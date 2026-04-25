@@ -73,9 +73,7 @@ def make_router(deps: ChatDependencies) -> APIRouter:
             yield session
 
     def _build_memory(db: AsyncSession) -> MemoryService:
-        return MemoryService(
-            db, sessionmaker=deps.sessionmaker, embedder=deps.embedder
-        )
+        return MemoryService(db)
 
     def _build_engine(db: AsyncSession) -> ConversationEngine:
         memory = _build_memory(db)
@@ -93,17 +91,14 @@ def make_router(deps: ChatDependencies) -> APIRouter:
             similarity_threshold=deps.settings.similarity_threshold,
         )
 
-    @router.post(
-        "/sessions",
-        response_model=SessionCreatedResponse,
-        status_code=status.HTTP_201_CREATED,
-    )
+    @router.post("/sessions", response_model=SessionCreatedResponse)
     async def create_session(
         db: AsyncSession = Depends(get_db),
     ) -> SessionCreatedResponse:
         memory = _build_memory(db)
-        sid = await memory.create_session(user_id=deps.default_user_id)
-        return SessionCreatedResponse(session_id=sid)
+        await memory.upsert_demo_user()
+        sess = await memory.create_session(user_id=deps.default_user_id)
+        return SessionCreatedResponse(session_id=sess.id)
 
     @router.get("/sessions", response_model=list[SessionListItem])
     async def list_sessions(

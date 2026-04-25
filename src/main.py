@@ -15,6 +15,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.chat import ChatDependencies, ConvSettings, make_router
+from src.api.documents import make_documents_router
 from src.config import Config, load_config
 from src.core.persona_loader import PersonaLoader
 from src.core.summarizer import Summarizer
@@ -33,6 +34,7 @@ def create_app(deps: ChatDependencies) -> FastAPI:
         allow_credentials=False,
     )
     app.include_router(make_router(deps))
+    app.include_router(make_documents_router(embedder=deps.embedder))
     return app
 
 

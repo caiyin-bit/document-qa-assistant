@@ -33,3 +33,20 @@ async def get_session(
     """Dependency-style context for FastAPI."""
     async with sm() as session:
         yield session
+
+
+_default_sm: async_sessionmaker[AsyncSession] | None = None
+
+
+def _get_default_sm() -> async_sessionmaker[AsyncSession]:
+    """Return (or lazily create) the default sessionmaker for DATABASE_URL."""
+    global _default_sm
+    if _default_sm is None:
+        _default_sm = make_sessionmaker(get_engine())
+    return _default_sm
+
+
+async def get_db() -> AsyncIterator[AsyncSession]:
+    """FastAPI dependency: yield an AsyncSession from DATABASE_URL env var."""
+    async with _get_default_sm()() as session:
+        yield session
