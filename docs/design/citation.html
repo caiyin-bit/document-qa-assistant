@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>设计方案 — citation</title>
+  <link rel="stylesheet" href="_frame.css">
+</head>
+<body>
+<h2>UI 设计 Q2：Citation 来源卡片的样式？</h2>
+<p class="subtitle">三种主流形态，都基于上一步选定的"末尾来源卡片"思路。差别在视觉密度和交互方式。</p>
+
+<style>
+  .demo-area {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 12px;
+  }
+  .answer-frame {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 16px 18px;
+    max-width: 520px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  }
+  .answer-text {
+    font-size: 14px;
+    color: #1f2937;
+    line-height: 1.6;
+    margin-bottom: 12px;
+  }
+
+  /* === Variant A: 极简 chip === */
+  .chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding-top: 10px;
+    border-top: 1px dashed #e5e7eb;
+  }
+  .chip-mini {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #f3f4f6;
+    color: #4b5563;
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    border: 1px solid #e5e7eb;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .chip-mini:hover { background: #e5e7eb; }
+  .chip-icon-mini {
+    width: 10px; height: 10px;
+    background: #ef4444;
+    border-radius: 2px;
+  }
+
+  /* === Variant B: 卡片式 + snippet 预览 === */
+  .citation-block {
+    border-top: 1px solid #f3f4f6;
+    padding-top: 12px;
+    margin-top: 8px;
+  }
+  .citation-label {
+    font-size: 11px;
+    color: #6b7280;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .citation-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .citation-card:hover {
+    background: #f3f4f6;
+    border-color: #d1d5db;
+  }
+  .file-badge {
+    width: 28px; height: 28px;
+    background: #ef4444;
+    color: #fff;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .citation-meta {
+    flex: 1;
+    min-width: 0;
+  }
+  .citation-name {
+    font-size: 12px;
+    color: #1f2937;
+    font-weight: 500;
+    margin-bottom: 2px;
+  }
+  .citation-snippet {
+    font-size: 11px;
+    color: #6b7280;
+    line-height: 1.4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  .page-badge {
+    background: #e0e7ff;
+    color: #3730a3;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    margin-left: 8px;
+  }
+
+  /* === Variant C: 折叠面板 === */
+  .accordion {
+    border-top: 1px solid #f3f4f6;
+    padding-top: 10px;
+  }
+  .accordion-trigger {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #4f46e5;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 4px 0;
+  }
+  .accordion-trigger:hover { color: #4338ca; }
+  .accordion-arrow {
+    transition: transform .15s;
+    font-size: 10px;
+  }
+  .accordion-open .accordion-arrow { transform: rotate(90deg); }
+  .accordion-content {
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: #f9fafb;
+    border-left: 3px solid #c7d2fe;
+    border-radius: 0 4px 4px 0;
+  }
+  .accordion-item {
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px dashed #e5e7eb;
+  }
+  .accordion-item:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+  .accordion-header {
+    font-size: 11px;
+    color: #4b5563;
+    font-weight: 600;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .accordion-text {
+    font-size: 11px;
+    color: #6b7280;
+    line-height: 1.5;
+  }
+</style>
+
+<div class="cards">
+
+  <!-- Variant A: minimal chip -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="answer-frame">
+        <div class="answer-text">
+          腾讯 2025 年总营收为 <strong>6,605 亿元</strong>，同比增长 10%。增长主要由游戏与金融科技业务驱动。
+        </div>
+        <div class="chip-row">
+          <div class="chip-mini"><span class="chip-icon-mini"></span>腾讯2025年报 · p.12</div>
+          <div class="chip-mini"><span class="chip-icon-mini"></span>p.45</div>
+          <div class="chip-mini"><span class="chip-icon-mini"></span>p.78</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A · 极简 chip</h3>
+      <p>胶囊形小芯片一行排开，hover/点击可弹 popover 看 snippet。最克制、聊天主体最干净。</p>
+    </div>
+  </div>
+
+  <!-- Variant B: cards w/ snippet -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="answer-frame">
+        <div class="answer-text">
+          腾讯 2025 年总营收为 <strong>6,605 亿元</strong>，同比增长 10%。增长主要由游戏与金融科技业务驱动。
+        </div>
+        <div class="citation-block">
+          <div class="citation-label">📚 来源（3）</div>
+          <div class="citation-card">
+            <div class="file-badge">PDF</div>
+            <div class="citation-meta">
+              <div class="citation-name">腾讯2025年度报告.pdf</div>
+              <div class="citation-snippet">2025 年公司实现营业收入人民币 6,605 亿元，同比增长 10.2%，其中网络游戏业务贡献 1,890 亿元……</div>
+            </div>
+            <span class="page-badge">p.12</span>
+          </div>
+          <div class="citation-card">
+            <div class="file-badge">PDF</div>
+            <div class="citation-meta">
+              <div class="citation-name">腾讯2025年度报告.pdf</div>
+              <div class="citation-snippet">金融科技及企业服务业务收入达到 2,134 亿元，同比增长 16%……</div>
+            </div>
+            <span class="page-badge">p.45</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B · 卡片式 + snippet 预览（推荐）</h3>
+      <p>每条来源默认显示 2 行原文，点击可展开全文/打开 PDF 跳页。最有"专业感"——评审一眼能看出"答案有据可查"。</p>
+    </div>
+  </div>
+
+  <!-- Variant C: collapsible accordion -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="answer-frame">
+        <div class="answer-text">
+          腾讯 2025 年总营收为 <strong>6,605 亿元</strong>，同比增长 10%。增长主要由游戏与金融科技业务驱动。
+        </div>
+        <div class="accordion accordion-open">
+          <div class="accordion-trigger">
+            <span class="accordion-arrow">▶</span>
+            查看 3 条来源
+          </div>
+          <div class="accordion-content">
+            <div class="accordion-item">
+              <div class="accordion-header">📄 腾讯2025年度报告.pdf · 第 12 页</div>
+              <div class="accordion-text">2025 年公司实现营业收入人民币 6,605 亿元，同比增长 10.2%……</div>
+            </div>
+            <div class="accordion-item">
+              <div class="accordion-header">📄 腾讯2025年度报告.pdf · 第 45 页</div>
+              <div class="accordion-text">金融科技及企业服务业务收入达到 2,134 亿元……</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C · 折叠面板</h3>
+      <p>默认折叠，点击展开看完整 snippet。最节省垂直空间，但少了"扑面而来"的可信感。</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top: 16px;">点击卡片选择，或在终端告诉我倾向 + 想调整的细节（颜色、尺寸、是否加跳页按钮等）。</p>
+</body></html>

@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>设计方案 — empty-state</title>
+  <link rel="stylesheet" href="_frame.css">
+</head>
+<body>
+<h2>UI 设计 Q4：新会话的空状态文案</h2>
+<p class="subtitle">用户点"新对话"看到的第一屏。文案 + 引导决定首次体验。3 种风格供你选。</p>
+
+<style>
+  .es-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+    margin: 16px 0;
+  }
+  .es-frame {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    height: 360px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  }
+  .es-sidebar {
+    background: #f9fafb;
+    border-right: 1px solid #e5e7eb;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .es-side-title {
+    font-size: 10px;
+    text-transform: uppercase;
+    color: #9ca3af;
+    font-weight: 600;
+    letter-spacing: .04em;
+  }
+  .es-side-item {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 11px;
+    color: #374151;
+  }
+  .es-side-item-active {
+    background: #eef2ff;
+    border-color: #c7d2fe;
+    color: #3730a3;
+  }
+  .es-main {
+    padding: 24px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    background: #fff;
+  }
+  .es-input-bar {
+    margin-top: auto;
+    padding: 8px 10px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    background: #fff;
+    font-size: 12px;
+    color: #9ca3af;
+  }
+
+  /* Variant A: 极简 */
+  .a-hero {
+    flex: 1;
+    border: 2px dashed #d1d5db;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #6b7280;
+    gap: 6px;
+  }
+  .a-icon { font-size: 32px; opacity: .6; }
+  .a-text { font-size: 14px; color: #374151; font-weight: 500; }
+  .a-hint { font-size: 11px; color: #9ca3af; }
+
+  /* Variant B: 引导式 */
+  .b-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #111827;
+  }
+  .b-subtitle {
+    font-size: 13px;
+    color: #6b7280;
+    line-height: 1.5;
+  }
+  .b-upload {
+    border: 2px dashed #c7d2fe;
+    background: linear-gradient(180deg, #fafbff 0%, #f5f7ff 100%);
+    border-radius: 10px;
+    padding: 28px 20px;
+    text-align: center;
+    color: #4338ca;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .b-upload:hover { background: #eef2ff; border-color: #a5b4fc; }
+  .b-upload-icon { font-size: 28px; margin-bottom: 8px; }
+  .b-upload-title { font-size: 14px; font-weight: 600; color: #4338ca; margin-bottom: 4px; }
+  .b-upload-hint { font-size: 11px; color: #6366f1; }
+
+  /* Variant C: 引导 + 示例问题 */
+  .c-grid-suggestions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .c-sug {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 11px;
+    color: #4b5563;
+    cursor: pointer;
+  }
+  .c-sug:hover { background: #f3f4f6; }
+  .c-sug-tag {
+    display: inline-block;
+    font-size: 9px;
+    background: #e0e7ff;
+    color: #4338ca;
+    padding: 1px 5px;
+    border-radius: 3px;
+    margin-right: 5px;
+    font-weight: 600;
+  }
+  .c-disabled {
+    opacity: .5;
+    cursor: not-allowed;
+  }
+  .c-empty-note {
+    font-size: 11px;
+    color: #9ca3af;
+    text-align: center;
+    margin-top: 8px;
+    font-style: italic;
+  }
+</style>
+
+<div class="es-grid">
+
+  <!-- Variant A: 极简 -->
+  <div class="es-frame" data-choice="a" onclick="toggleSelect(this)" style="cursor:pointer;">
+    <div class="es-sidebar">
+      <div class="es-side-title">会话</div>
+      <div class="es-side-item es-side-item-active">+ 新对话</div>
+      <div class="es-side-item">财报问答</div>
+    </div>
+    <div class="es-main">
+      <div class="a-hero">
+        <div class="a-icon">📄</div>
+        <div class="a-text">先上传 PDF 开始对话</div>
+        <div class="a-hint">拖入此处或点击选择文件</div>
+      </div>
+      <div class="es-input-bar">输入问题…（请先上传文档）</div>
+    </div>
+  </div>
+
+  <!-- Variant B: 引导式 -->
+  <div class="es-frame" data-choice="b" onclick="toggleSelect(this)" style="cursor:pointer;">
+    <div class="es-sidebar">
+      <div class="es-side-title">会话</div>
+      <div class="es-side-item es-side-item-active">+ 新对话</div>
+      <div class="es-side-item">财报问答</div>
+    </div>
+    <div class="es-main">
+      <div>
+        <div class="b-title">📄 文档问答</div>
+        <div class="b-subtitle" style="margin-top: 4px;">上传 PDF，针对内容自由提问。所有回答都附带原文出处。</div>
+      </div>
+      <div class="b-upload">
+        <div class="b-upload-icon">📥</div>
+        <div class="b-upload-title">拖入 PDF 或点击上传</div>
+        <div class="b-upload-hint">支持中文 · 单文件 ≤ 20MB · 可上传多份</div>
+      </div>
+      <div class="es-input-bar">先上传一份文档，然后开始提问…</div>
+    </div>
+  </div>
+
+  <!-- Variant C: 引导 + 示例问题 -->
+  <div class="es-frame" data-choice="c" onclick="toggleSelect(this)" style="cursor:pointer;">
+    <div class="es-sidebar">
+      <div class="es-side-title">会话</div>
+      <div class="es-side-item es-side-item-active">+ 新对话</div>
+      <div class="es-side-item">财报问答</div>
+    </div>
+    <div class="es-main">
+      <div>
+        <div class="b-title">👋 我能帮你读 PDF</div>
+        <div class="b-subtitle" style="margin-top: 4px;">上传文档后，可以问事实、要摘要、做对比，回答都带原文出处。</div>
+      </div>
+      <div class="b-upload" style="padding: 18px 20px;">
+        <div class="b-upload-icon" style="font-size: 22px;">📥</div>
+        <div class="b-upload-title">拖入 PDF 或点击上传</div>
+        <div class="b-upload-hint">支持中文 · ≤ 20MB</div>
+      </div>
+      <div>
+        <div style="font-size: 11px; color: #6b7280; font-weight: 600; margin-bottom: 6px;">💡 上传后可以问：</div>
+        <div class="c-grid-suggestions">
+          <div class="c-sug c-disabled"><span class="c-sug-tag">事实</span>2025 年总营收是多少？</div>
+          <div class="c-sug c-disabled"><span class="c-sug-tag">摘要</span>总结主要业务板块</div>
+          <div class="c-sug c-disabled"><span class="c-sug-tag">对比</span>2025 vs 2024 净利润变化？</div>
+          <div class="c-sug c-disabled"><span class="c-sug-tag">检索</span>报告中提到的 AI 战略</div>
+        </div>
+        <div class="c-empty-note">（示例问题在上传后会变为可点击）</div>
+      </div>
+      <div class="es-input-bar" style="margin-top: 6px;">输入问题…</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="cards" style="margin-top: 16px;">
+  <div class="card" style="padding: 12px;">
+    <h3 style="margin: 0 0 8px;">三种风格对比</h3>
+    <table style="width:100%; font-size: 12px; border-collapse: collapse;">
+      <thead>
+        <tr style="background: #f9fafb; text-align: left;">
+          <th style="padding: 6px;">维度</th>
+          <th style="padding: 6px;">A 极简</th>
+          <th style="padding: 6px;">B 引导式</th>
+          <th style="padding: 6px;">C 引导+示例</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td style="padding: 6px;">首次理解成本</td><td>低</td><td>低</td><td>最低</td></tr>
+        <tr><td style="padding: 6px;">演示"哇"度</td><td>普通</td><td>好</td><td>最好</td></tr>
+        <tr><td style="padding: 6px;">工作量</td><td>1h</td><td>2h</td><td>3h（示例问题需匹配文档）</td></tr>
+        <tr><td style="padding: 6px;">演示风险</td><td>低</td><td>低</td><td>中（示例问题需根据上传文档动态生成或写死）</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top: 14px;">推荐 <strong>B</strong>：演示效果好 + 工作量可控。C 的"示例问题"在 demo 时如果文档不匹配会很尴尬。点选或终端回复。</p>
+</body></html>

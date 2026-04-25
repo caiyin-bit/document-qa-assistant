@@ -612,6 +612,9 @@ else:
 
 ## 8. UI 设计
 
+> 设计阶段对 4 个交互维度做过 mockup 对比；最终选了 D / B / B / B。
+> 4 个 HTML mockup + 选择理由见 [`docs/design/`](../../design/)。
+
 ### 8.1 整体布局（"D 模式"）
 
 ```

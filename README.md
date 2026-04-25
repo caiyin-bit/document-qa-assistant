@@ -92,6 +92,10 @@ DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/docqa \
 cd frontend && pnpm test
 ```
 
+## 设计 Mockups
+
+实施前做了 4 个 UI 维度的方案对比（布局 / Citation 卡片 / 上传反馈 / 空状态）。每个维度都有 HTML mockup 展示候选方案，最终选了 D / B / B / B。详见 [`docs/design/`](docs/design/)。
+
 ## 截图
 
 参见 [`docs/screenshots/`](docs/screenshots/)：

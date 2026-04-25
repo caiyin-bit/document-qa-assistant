@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>设计方案 — upload-states</title>
+  <link rel="stylesheet" href="_frame.css">
+</head>
+<body>
+<h2>UI 设计 Q3：上传交互 + 状态反馈</h2>
+<p class="subtitle">PDF 解析 + 向量化要 5–30 秒，状态反馈直接决定"专不专业"。屏幕上展示 4 个关键状态的 mockup（D 布局下），下方选你倾向的反馈细节方案。</p>
+
+<style>
+  .state-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin: 16px 0 24px;
+  }
+  .state-frame {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .state-label {
+    padding: 6px 10px;
+    background: #f9fafb;
+    font-size: 11px;
+    font-weight: 600;
+    color: #6b7280;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: space-between;
+  }
+  .state-body {
+    padding: 14px;
+    min-height: 140px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* state 1: empty/idle - hero upload */
+  .hero {
+    flex: 1;
+    border: 2px dashed #d1d5db;
+    border-radius: 6px;
+    padding: 20px;
+    text-align: center;
+    color: #6b7280;
+  }
+  .hero-active {
+    border-color: #4f46e5;
+    background: #eef2ff;
+    color: #4338ca;
+  }
+  .hero-icon { font-size: 28px; margin-bottom: 6px; }
+  .hero-title { font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 3px; }
+  .hero-hint { font-size: 11px; color: #9ca3af; }
+
+  /* state 2: processing - top bar */
+  .top-bar-mock {
+    width: 100%;
+    background: #f9fafb;
+    border-radius: 6px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .doc-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 5px;
+    padding: 6px 8px;
+  }
+  .doc-row-processing {
+    border-color: #fde68a;
+    background: #fffbeb;
+  }
+  .doc-row-ready {
+    border-color: #86efac;
+    background: #f0fdf4;
+  }
+  .doc-row-failed {
+    border-color: #fecaca;
+    background: #fef2f2;
+  }
+  .doc-icon-sm {
+    width: 18px; height: 18px;
+    background: #ef4444;
+    border-radius: 3px;
+    color: #fff;
+    font-size: 8px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .doc-name-sm {
+    font-size: 12px;
+    color: #374151;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .doc-meta {
+    font-size: 10px;
+    color: #6b7280;
+  }
+  .status-pill {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .pill-processing {
+    background: #fef3c7;
+    color: #92400e;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .pill-ready { background: #dcfce7; color: #166534; }
+  .pill-failed { background: #fee2e2; color: #991b1b; }
+  .spinner {
+    width: 8px; height: 8px;
+    border: 1.5px solid #fbbf24;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .progress-bar {
+    height: 3px;
+    background: #fef3c7;
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 6px;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #f59e0b, #fbbf24);
+    width: 60%;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%, 100% { opacity: .8; } 50% { opacity: 1; } }
+  .step-text {
+    font-size: 10px;
+    color: #92400e;
+    margin-top: 4px;
+  }
+  .error-detail {
+    font-size: 10px;
+    color: #991b1b;
+    margin-top: 4px;
+    line-height: 1.4;
+  }
+  .retry-link {
+    color: #dc2626;
+    text-decoration: underline;
+    cursor: pointer;
+    margin-left: 4px;
+  }
+  .x-btn {
+    color: #9ca3af;
+    font-size: 14px;
+    cursor: pointer;
+    flex-shrink: 0;
+    padding: 0 4px;
+  }
+  .x-btn:hover { color: #6b7280; }
+</style>
+
+<h3 style="margin-top: 0;">四个关键状态的视觉</h3>
+
+<div class="state-grid">
+  <!-- 1. empty + drag-active -->
+  <div class="state-frame">
+    <div class="state-label">① 空状态 / 拖拽中<span style="color:#4f46e5">[拖拽态高亮]</span></div>
+    <div class="state-body">
+      <div class="hero hero-active">
+        <div class="hero-icon">📥</div>
+        <div class="hero-title">松开以上传 PDF</div>
+        <div class="hero-hint">支持中文 · 最大 20MB</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. processing -->
+  <div class="state-frame">
+    <div class="state-label">② 解析中（5–30 秒）</div>
+    <div class="state-body">
+      <div class="top-bar-mock">
+        <div class="doc-row doc-row-processing" style="flex-direction: column; align-items: stretch; gap: 0;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div class="doc-icon-sm">PDF</div>
+            <div class="doc-name-sm">腾讯2025年度报告.pdf</div>
+            <span class="status-pill pill-processing"><span class="spinner"></span>解析中</span>
+          </div>
+          <div class="progress-bar"><div class="progress-fill"></div></div>
+          <div class="step-text">正在向量化第 45 / 89 页…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. ready -->
+  <div class="state-frame">
+    <div class="state-label">③ 就绪</div>
+    <div class="state-body">
+      <div class="top-bar-mock">
+        <div class="doc-row doc-row-ready">
+          <div class="doc-icon-sm">PDF</div>
+          <div class="doc-name-sm">腾讯2025年度报告.pdf</div>
+          <span class="doc-meta">89 页</span>
+          <span class="status-pill pill-ready">✓ 就绪</span>
+          <span class="x-btn">×</span>
+        </div>
+        <div class="doc-row doc-row-ready">
+          <div class="doc-icon-sm">PDF</div>
+          <div class="doc-name-sm">阿里2025年度报告.pdf</div>
+          <span class="doc-meta">76 页</span>
+          <span class="status-pill pill-ready">✓ 就绪</span>
+          <span class="x-btn">×</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. failed -->
+  <div class="state-frame">
+    <div class="state-label">④ 失败</div>
+    <div class="state-body">
+      <div class="top-bar-mock">
+        <div class="doc-row doc-row-failed" style="flex-direction: column; align-items: stretch;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div class="doc-icon-sm" style="background:#dc2626;">PDF</div>
+            <div class="doc-name-sm">扫描版合同.pdf</div>
+            <span class="status-pill pill-failed">✗ 失败</span>
+            <span class="x-btn">×</span>
+          </div>
+          <div class="error-detail">
+            未能提取文本（疑似纯图片 PDF）<span class="retry-link">重试</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3>🎯 关于反馈细节，倾向哪种？</h3>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="padding: 14px; text-align: center; font-size: 12px; color: #6b7280;">
+        <div class="status-pill pill-processing" style="margin: 0 auto;"><span class="spinner"></span>解析中</div>
+        <div style="margin-top: 8px; font-size: 11px;">仅徽章 + 转圈</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A · 仅状态徽章</h3>
+      <p>简洁、不喧宾夺主。用户知道在处理就够了。<strong>工作量最小</strong>。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="padding: 14px; font-size: 12px; color: #6b7280;">
+        <div style="display:flex; align-items:center; gap:6px; margin-bottom: 6px;">
+          <span class="status-pill pill-processing"><span class="spinner"></span>解析中</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill"></div></div>
+        <div class="step-text">正在向量化第 45 / 89 页…</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B · 进度条 + 步骤文案（推荐）</h3>
+      <p>展示当前在做什么（提取 / 分块 / 向量化 / 入库），让用户对系统有信任感。<strong>多 1 个 SSE 端点 ≈ 1 小时工作量</strong>。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="padding: 14px; font-size: 12px; color: #6b7280; text-align: center;">
+        <div style="font-size: 28px;">⚙️</div>
+        <div style="margin-top: 6px;">解析中…</div>
+        <div style="font-size: 10px; margin-top: 4px;">大型 spinner 动画</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C · 大型 spinner 占位卡</h3>
+      <p>把整个文档行替换为 loading 占位。视觉冲击力强但缺信息量。</p>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top: 12px;">点选反馈方案，或直接告诉我"按 B 但去掉进度条只保留步骤文案"之类的细节。</p>
+</body></html>

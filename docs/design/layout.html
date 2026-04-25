@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>设计方案 — layout</title>
+  <link rel="stylesheet" href="_frame.css">
+</head>
+<body>
+<h2>UI 设计 Q1：文档上传 + 列表，放在哪里？</h2>
+<p class="subtitle">现有布局是左侧 sessions sidebar + 右侧 chat pane。新增的文档功能要"住"在哪儿，决定了整个使用流程的感觉。点击卡片选择你倾向的方案。</p>
+
+<style>
+  .wf {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 12px;
+  }
+  .frame {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04);
+  }
+  .frame-header {
+    padding: 8px 12px;
+    background: #f9fafb;
+    font-size: 12px;
+    font-weight: 600;
+    color: #6b7280;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .frame-body {
+    display: grid;
+    height: 320px;
+    background: #fafafa;
+  }
+  /* layout A: sidebar w/ docs at bottom */
+  .layout-a { grid-template-columns: 220px 1fr; }
+  /* layout B: chat top bar */
+  .layout-b { grid-template-columns: 200px 1fr; }
+  /* layout C: 3 columns */
+  .layout-c { grid-template-columns: 180px 1fr 200px; }
+  /* layout D: hero upload */
+  .layout-d { grid-template-columns: 200px 1fr; }
+
+  .col {
+    border-right: 1px solid #e5e7eb;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .col:last-child { border-right: none; }
+  .col-title {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: #9ca3af;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .item {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 11px;
+    color: #374151;
+  }
+  .item-active {
+    background: #eef2ff;
+    border-color: #c7d2fe;
+    color: #3730a3;
+  }
+  .doc-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+  .doc-icon {
+    width: 14px; height: 14px;
+    background: #ef4444;
+    border-radius: 2px;
+    color: #fff;
+    font-size: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .doc-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .upload-btn {
+    border: 1.5px dashed #d1d5db;
+    border-radius: 4px;
+    padding: 8px;
+    text-align: center;
+    color: #6b7280;
+    font-size: 10px;
+    background: #fff;
+  }
+  .top-bar {
+    grid-column: span 2;
+    padding: 8px 12px;
+    background: #f3f4f6;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    overflow: hidden;
+  }
+  .chat-area {
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: #fff;
+  }
+  .bubble {
+    background: #f3f4f6;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 11px;
+    color: #4b5563;
+    max-width: 80%;
+  }
+  .bubble-user {
+    background: #4f46e5;
+    color: #fff;
+    align-self: flex-end;
+  }
+  .citation {
+    font-size: 9px;
+    color: #6b7280;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 3px;
+    padding: 3px 6px;
+    margin-top: 4px;
+    display: inline-block;
+  }
+  .input-bar {
+    margin-top: auto;
+    padding: 6px 8px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    font-size: 11px;
+    color: #9ca3af;
+  }
+  .hero-upload {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px dashed #d1d5db;
+    border-radius: 8px;
+    margin: 12px;
+    color: #6b7280;
+    font-size: 13px;
+    text-align: center;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .hero-icon { font-size: 24px; }
+  .divider {
+    height: 1px;
+    background: #e5e7eb;
+    margin: 4px 0;
+  }
+</style>
+
+<div class="cards">
+  <!-- A: Sidebar w/ docs at bottom -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="frame">
+        <div class="frame-header">A · 左侧栏 · 文档列表在 sessions 下方</div>
+        <div class="frame-body layout-a">
+          <div class="col">
+            <div class="col-title">会话</div>
+            <div class="item">+ 新对话</div>
+            <div class="item item-active">财报问答</div>
+            <div class="item">合同审阅</div>
+            <div class="divider"></div>
+            <div class="col-title">本会话文档</div>
+            <div class="doc-item"><span class="doc-icon">P</span><span class="doc-name">腾讯2025年报.pdf</span></div>
+            <div class="upload-btn">+ 上传 PDF</div>
+          </div>
+          <div class="chat-area">
+            <div class="bubble bubble-user">2025 总营收？</div>
+            <div class="bubble">
+              6,605 亿元，同比增长 10%。
+              <div><span class="citation">📄 腾讯2025年报 p.12</span></div>
+            </div>
+            <div class="input-bar">输入问题…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A · 左侧栏底部</h3>
+      <p>会话和文档都在同一栏，紧凑。优点：聊天面板宽。缺点：文档多时侧栏拥挤。</p>
+    </div>
+  </div>
+
+  <!-- B: Chat top bar -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="frame">
+        <div class="frame-header">B · 聊天面板顶部 · 文档横条</div>
+        <div class="frame-body layout-b">
+          <div class="col">
+            <div class="col-title">会话</div>
+            <div class="item">+ 新对话</div>
+            <div class="item item-active">财报问答</div>
+            <div class="item">合同审阅</div>
+          </div>
+          <div style="display: flex; flex-direction: column; background: #fff;">
+            <div style="padding: 8px 12px; background: #f9fafb; border-bottom: 1px solid #e5e7eb; display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+              <span style="font-size: 10px; color: #6b7280; font-weight: 600;">本会话文档</span>
+              <div class="doc-item" style="padding: 3px 6px;"><span class="doc-icon">P</span><span class="doc-name">腾讯2025年报</span></div>
+              <div class="doc-item" style="padding: 3px 6px;"><span class="doc-icon">P</span><span class="doc-name">阿里2025年报</span></div>
+              <div class="upload-btn" style="padding: 3px 8px; font-size: 9px;">+ 添加</div>
+            </div>
+            <div class="chat-area">
+              <div class="bubble bubble-user">2025 总营收？</div>
+              <div class="bubble">
+                6,605 亿元，同比增长 10%。
+                <div><span class="citation">📄 腾讯2025年报 p.12</span></div>
+              </div>
+              <div class="input-bar">输入问题…</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B · 聊天面板顶部横条</h3>
+      <p>文档在聊天上方一目了然。优点：场景隔离感强、对话焦点清晰。缺点：横条占用聊天高度。</p>
+    </div>
+  </div>
+
+  <!-- C: 3 columns -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="frame">
+        <div class="frame-header">C · 三栏布局 · 文档独立面板</div>
+        <div class="frame-body layout-c">
+          <div class="col">
+            <div class="col-title">会话</div>
+            <div class="item">+ 新对话</div>
+            <div class="item item-active">财报问答</div>
+            <div class="item">合同审阅</div>
+          </div>
+          <div class="chat-area">
+            <div class="bubble bubble-user">2025 总营收？</div>
+            <div class="bubble">
+              6,605 亿元，同比增长 10%。
+              <div><span class="citation">📄 腾讯2025年报 p.12</span></div>
+            </div>
+            <div class="input-bar">输入问题…</div>
+          </div>
+          <div class="col" style="background: #fafafa; border-left: 1px solid #e5e7eb;">
+            <div class="col-title">文档</div>
+            <div class="doc-item"><span class="doc-icon">P</span><span class="doc-name">腾讯2025年报</span></div>
+            <div class="doc-item"><span class="doc-icon">P</span><span class="doc-name">阿里2025年报</span></div>
+            <div class="upload-btn">+ 上传 PDF</div>
+            <div class="divider"></div>
+            <div style="font-size: 9px; color: #9ca3af;">点击文档可预览</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C · 三栏（最专业）</h3>
+      <p>独立文档面板，未来可加预览/搜索。优点：信息架构最清晰。缺点：聊天区被压缩；移动端难做。</p>
+    </div>
+  </div>
+
+  <!-- D: Hero upload empty state + B-style top bar after -->
+  <div class="card" data-choice="d" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="frame">
+        <div class="frame-header">D · 空状态居中上传区，传后变 B 模式</div>
+        <div class="frame-body layout-d">
+          <div class="col">
+            <div class="col-title">会话</div>
+            <div class="item">+ 新对话</div>
+            <div class="item item-active">财报问答</div>
+            <div class="item">合同审阅</div>
+          </div>
+          <div style="display: flex; flex-direction: column; background: #fff;">
+            <div class="hero-upload">
+              <div class="hero-icon">📄</div>
+              <div style="font-weight: 600; color: #374151;">拖拽 PDF 到此处开始</div>
+              <div style="font-size: 10px;">或<u>点击选择文件</u> · 最大 20MB</div>
+            </div>
+            <div class="input-bar" style="margin: 0 12px 12px;">先上传文档再开始提问…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>D · 空状态引导 + 上传后切顶部栏</h3>
+      <p>新会话首屏即引导上传，演示故事最强。已上传后自动切回 B 模式（顶部横条）。<strong>推荐</strong>：演示效果 + 工程量适中。</p>
+    </div>
+  </div>
+</div>
+</body></html>
