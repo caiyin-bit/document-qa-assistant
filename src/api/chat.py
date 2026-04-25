@@ -63,6 +63,8 @@ class ChatDependencies:
     summarizer: object  # duck-typed: must expose async summarize(prior, msgs)
     default_user_id: UUID
     settings: ConvSettings
+    min_similarity: float = 0.35
+    top_k: int = 16
 
 
 def make_router(deps: ChatDependencies) -> APIRouter:
@@ -76,19 +78,18 @@ def make_router(deps: ChatDependencies) -> APIRouter:
         return MemoryService(db)
 
     def _build_engine(db: AsyncSession) -> ConversationEngine:
-        memory = _build_memory(db)
-        tools = ToolRegistry.default(memory)
+        mem = _build_memory(db)
+        tools = ToolRegistry(
+            mem=mem,
+            embedder=deps.embedder,
+            min_similarity=deps.min_similarity,
+            top_k=deps.top_k,
+        )
         return ConversationEngine(
-            memory=memory,
-            persona=deps.persona,
-            tools=tools,
+            mem=mem,
             llm=deps.llm,
-            summarizer=deps.summarizer,
-            max_tool_iterations=deps.settings.max_tool_iterations,
-            compress_trigger_threshold=deps.settings.compress_trigger_threshold,
-            compress_keep_recent=deps.settings.compress_keep_recent,
-            retrieve_top_k=deps.settings.retrieve_top_k,
-            similarity_threshold=deps.settings.similarity_threshold,
+            tools=tools,
+            persona=deps.persona,
         )
 
     @router.post("/sessions", response_model=SessionCreatedResponse)
@@ -165,9 +166,8 @@ def make_router(deps: ChatDependencies) -> APIRouter:
     ) -> SSEStreamingResponse:
         engine = _build_engine(db)
         events = engine.handle_stream(
-            user_id=deps.default_user_id,
             session_id=req.session_id,
-            user_message=req.message,
+            message=req.message,
         )
         return SSEStreamingResponse(
             to_sse_bytes(events),

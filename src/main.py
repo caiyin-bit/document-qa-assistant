@@ -9,6 +9,7 @@ Test entrypoint:
 
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 
 from fastapi import FastAPI
@@ -70,6 +71,9 @@ def _production_deps() -> ChatDependencies:
         retrieve_top_k=cfg.memory.retrieve_top_k,
         similarity_threshold=cfg.memory.similarity_threshold,
     )
+    # MIN_SIMILARITY env var overrides config.yaml default (spec §5)
+    min_similarity = float(os.environ.get("MIN_SIMILARITY", 0.35))
+    top_k = int(os.environ.get("TOP_K", 16))
     return ChatDependencies(
         sessionmaker=sm,
         persona=persona,
@@ -78,6 +82,8 @@ def _production_deps() -> ChatDependencies:
         summarizer=summarizer,
         default_user_id=cfg.app_user.default_user_id,
         settings=settings,
+        min_similarity=min_similarity,
+        top_k=top_k,
     )
 
 
