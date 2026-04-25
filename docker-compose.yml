@@ -34,7 +34,11 @@ services:
       - ./scripts:/app/scripts
       - ./config.yaml:/app/config.yaml
       - ./data/uploads:/app/data/uploads
-      - bge_cache:/root/.cache/huggingface
+      # Bind-mount host HF cache so we don't re-download BGE inside the
+      # container (cn networks can't reach huggingface.co reliably; the
+      # original named-volume `bge_cache` is preserved below as a fallback
+      # but unused while this bind exists).
+      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
     ports:
       - "8000:8000"
     depends_on:

@@ -47,17 +47,10 @@ pythonpath = ["."]
 line-length = 100
 target-version = "py311"
 
-# --- CPU-only torch (uniform across platforms) ---
-# sentence-transformers pulls torch transitively. On Linux PyPI, torch ships
-# with the full CUDA runtime (~2 GB). We deploy CPU-only (BGE embedder runs
-# on CPU per config.yaml's `embedding.device: cpu`), so route torch through
-# PyTorch's CPU wheel index for ALL platforms — uniform resolution, smaller
-# Docker image, faster cold builds.
-[tool.uv.sources]
-torch = { index = "pytorch-cpu" }
-
-[[tool.uv.index]]
-name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
-explicit = true
+# torch is resolved from the default index (UV_DEFAULT_INDEX, set by the
+# Dockerfile to Tsinghua's PyPI mirror). On Linux this pulls the CUDA-
+# bundled wheel (~2GB extra), but the app forces CPU at runtime via
+# config.yaml's `embedding.device: cpu`, so this is image-size-only cost.
+# The previous CPU-only routing via download.pytorch.org/whl/cpu is
+# unreachable from CN networks at usable speeds.
 
