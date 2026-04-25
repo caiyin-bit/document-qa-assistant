@@ -42,7 +42,7 @@ export function ChatPane({ sessionId, docs, onFirstMessageSent }: Props) {
         }));
         setMessages((prev) => (prev.length === 0 ? converted : prev));
       } catch {
-        /* empty pane fallback */
+        /* empty fallback */
       }
     })();
     return () => {
@@ -57,8 +57,6 @@ export function ChatPane({ sessionId, docs, onFirstMessageSent }: Props) {
   const hasAny = docs.length > 0;
   const hasReady = docs.some((d) => d.status === "ready");
   const hasProcessing = docs.some((d) => d.status === "processing");
-  // Allow chat without docs (plain LLM). Block only while streaming or while
-  // docs exist but none are ready (we want those questions to hit RAG).
   const inputDisabled = streaming || (hasAny && !hasReady);
 
   async function handleSend() {
@@ -75,15 +73,21 @@ export function ChatPane({ sessionId, docs, onFirstMessageSent }: Props) {
     : hasProcessing && !hasReady
       ? "请等待文档解析完成…"
       : hasReady
-        ? "向文档提问…（Enter 发送 · Shift+Enter 换行）"
-        : "输入问题与助手对话…（Enter 发送）";
+        ? "向文档提问…  Enter 发送 · Shift+Enter 换行"
+        : "输入问题与助手对话…  Enter 发送";
 
   return (
-    <div className="flex h-full flex-1 flex-col bg-white">
+    <div
+      className="flex h-full flex-1 flex-col"
+      style={{ backgroundColor: "var(--app-bg)" }}
+    >
       <ScrollArea className="flex-1">
         <div className="mx-auto w-full max-w-3xl px-5 py-5">
           {messages.length === 0 && (
-            <div className="mt-8 text-center text-[13px] text-gray-400">
+            <div
+              className="mt-8 text-center text-[13px]"
+              style={{ color: "var(--app-text-faint)" }}
+            >
               {hasReady
                 ? "文档已就绪，可以开始提问了。"
                 : hasProcessing
@@ -95,10 +99,17 @@ export function ChatPane({ sessionId, docs, onFirstMessageSent }: Props) {
             <MessageBubble key={m.id} message={m} />
           ))}
           {error && (
-            <div className="my-2 rounded-md border border-orange-300 bg-orange-50 px-3 py-2 text-sm text-orange-800">
+            <div
+              className="my-2 rounded-md border px-3 py-2 text-sm"
+              style={{
+                backgroundColor: "var(--app-status-err-bg)",
+                borderColor: "var(--app-status-err-card-border)",
+                color: "var(--app-status-err-fg)",
+              }}
+            >
               出错了：{error}
               <button
-                className="ml-2 text-orange-900 underline underline-offset-2 hover:no-underline"
+                className="ml-2 underline underline-offset-2 hover:no-underline"
                 onClick={() => {
                   const last = messages.findLast((m) => m.role === "user");
                   if (last) {
@@ -115,7 +126,13 @@ export function ChatPane({ sessionId, docs, onFirstMessageSent }: Props) {
         </div>
       </ScrollArea>
 
-      <div className="border-t border-gray-200 bg-white px-4 py-3">
+      <div
+        className="border-t px-4 py-3"
+        style={{
+          backgroundColor: "var(--app-bg)",
+          borderColor: "var(--app-border-subtle)",
+        }}
+      >
         <div className="mx-auto flex w-full max-w-3xl items-end gap-2">
           <textarea
             value={input}
@@ -129,12 +146,21 @@ export function ChatPane({ sessionId, docs, onFirstMessageSent }: Props) {
             placeholder={placeholder}
             disabled={inputDisabled}
             rows={1}
-            className="min-h-[40px] flex-1 resize-none rounded-md border border-gray-200 bg-white px-3 py-2 text-[13px] outline-none placeholder:text-gray-400 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200 disabled:bg-gray-50 disabled:text-gray-400"
+            className="min-h-[40px] flex-1 resize-none rounded-md border px-3 py-2 text-[13px] outline-none transition focus:ring-2 disabled:opacity-50"
+            style={{
+              backgroundColor: "var(--app-surface-input)",
+              borderColor: "var(--app-border-subtle)",
+              color: "var(--app-text-primary)",
+            }}
           />
           <button
             onClick={handleSend}
             disabled={inputDisabled || !input.trim()}
-            className="inline-flex items-center gap-1 rounded-md bg-indigo-600 px-3.5 py-2 text-[13px] font-medium text-white transition hover:bg-indigo-700 disabled:bg-gray-300"
+            className="inline-flex items-center gap-1 rounded-md px-3.5 py-2 text-[13px] font-medium transition hover:opacity-90 disabled:opacity-50"
+            style={{
+              backgroundColor: "var(--app-accent)",
+              color: "var(--app-text-on-accent)",
+            }}
           >
             <Send className="h-3.5 w-3.5" /> 发送
           </button>
