@@ -3,7 +3,7 @@ app:
   log_level: INFO
 
 db:
-  url: "postgresql+asyncpg://postgres:postgres@localhost:5432/chat"
+  url: "postgresql+asyncpg://postgres:postgres@localhost:5432/docqa"
 
 llm:
   provider: siliconflow

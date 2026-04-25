@@ -5,13 +5,13 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: chat
+      POSTGRES_DB: docqa
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d chat"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d docqa"]
       interval: 3s
       timeout: 3s
       retries: 10
@@ -23,7 +23,7 @@ services:
              uv run python scripts/seed_demo_user.py &&
              uv run uvicorn src.main:make_app_default --factory --host 0.0.0.0 --port 8000 --reload"
     environment:
-      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/chat
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/docqa
       MOONSHOT_API_KEY: ${MOONSHOT_API_KEY}
       MOONSHOT_BASE_URL: ${MOONSHOT_BASE_URL:-https://api.siliconflow.cn/v1}
       MOONSHOT_MODEL_ID: ${MOONSHOT_MODEL_ID:-Pro/moonshotai/Kimi-K2.6}
