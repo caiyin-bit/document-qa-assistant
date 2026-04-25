@@ -33,6 +33,7 @@ services:
       - ./persona:/app/persona
       - ./scripts:/app/scripts
       - ./config.yaml:/app/config.yaml
+      - ./data/uploads:/app/data/uploads
       - bge_cache:/root/.cache/huggingface
     ports:
       - "8000:8000"

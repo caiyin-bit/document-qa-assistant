@@ -24,4 +24,6 @@ COPY persona ./persona
 COPY scripts ./scripts
 COPY config.yaml alembic.ini ./
 
+RUN mkdir -p /app/data/uploads/.tmp
+
 EXPOSE 8000

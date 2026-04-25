@@ -36,6 +36,8 @@ set -a
 . .env
 set +a
 
+mkdir -p data/uploads/.tmp
+
 echo "🐳 Starting Postgres..."
 docker compose up -d postgres
 
