@@ -28,7 +28,10 @@ export function Home() {
   }, []);
 
   return (
-    <main className="flex h-screen w-screen overflow-hidden bg-gray-100">
+    <main
+      className="flex h-screen w-screen overflow-hidden"
+      style={{ backgroundColor: "var(--app-bg)" }}
+    >
       <SessionsSidebar
         sessions={sessions}
         activeSessionId={sessionId}
@@ -41,7 +44,10 @@ export function Home() {
           onFirstMessageSent={refreshSessions}
         />
       ) : (
-        <div className="flex flex-1 items-center justify-center text-sm text-gray-400">
+        <div
+          className="flex flex-1 items-center justify-center text-sm"
+          style={{ color: "var(--app-text-faint)" }}
+        >
           选择一个会话或新建一个
         </div>
       )}
