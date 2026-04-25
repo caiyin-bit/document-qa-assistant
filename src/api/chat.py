@@ -88,7 +88,7 @@ def make_router(deps: ChatDependencies) -> APIRouter:
             mem=mem,
             llm=deps.llm,
             tools=tools,
-            persona=deps.persona,
+            persona=deps.persona.load(),
         )
 
     @router.post("/sessions", response_model=SessionCreatedResponse)
