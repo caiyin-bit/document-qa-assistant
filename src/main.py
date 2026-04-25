@@ -24,7 +24,7 @@ from src.llm.kimi_client import KimiClient
 
 
 def create_app(deps: ChatDependencies) -> FastAPI:
-    app = FastAPI(title="Insurance Broker Assistant MVP")
+    app = FastAPI(title="Document QA Assistant")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:3000"],

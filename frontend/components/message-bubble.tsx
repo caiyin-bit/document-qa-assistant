@@ -1,4 +1,3 @@
-import { ToolChip } from "./tool-chip";
 import type { Message } from "@/lib/types";
 
 export function MessageBubble({ message }: { message: Message }) {
@@ -17,13 +16,6 @@ export function MessageBubble({ message }: { message: Message }) {
         {message.content && (
           <div className="whitespace-pre-wrap break-words">
             {message.content}
-          </div>
-        )}
-        {!isUser && message.tools.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {message.tools.map((t) => (
-              <ToolChip key={t.id} tool={t} />
-            ))}
           </div>
         )}
       </div>
