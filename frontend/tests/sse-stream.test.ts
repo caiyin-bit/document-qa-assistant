@@ -97,3 +97,34 @@ describe("parseSSE", () => {
     ]);
   });
 });
+
+describe("citations event", () => {
+  it("parses citations event", async () => {
+    const stream = new ReadableStream({
+      start(c) {
+        c.enqueue(new TextEncoder().encode(
+          'event: citations\ndata: {"chunks":[{"doc_id":"d1","filename":"x.pdf","page_no":12,"snippet":"s","score":0.8}]}\n\n'
+        ));
+        c.enqueue(new TextEncoder().encode('event: done\ndata: {}\n\n'));
+        c.close();
+      }
+    });
+    const events: any[] = [];
+    for await (const ev of parseSSE(stream)) events.push(ev);
+    const cit = events.find(e => e.type === 'citations');
+    expect(cit).toBeDefined();
+    expect(cit.chunks[0].page_no).toBe(12);
+  });
+
+  it("parses empty citations event", async () => {
+    const stream = new ReadableStream({
+      start(c) {
+        c.enqueue(new TextEncoder().encode('event: citations\ndata: {"chunks":[]}\n\n'));
+        c.close();
+      }
+    });
+    const events: any[] = [];
+    for await (const ev of parseSSE(stream)) events.push(ev);
+    expect(events[0].chunks).toEqual([]);
+  });
+});

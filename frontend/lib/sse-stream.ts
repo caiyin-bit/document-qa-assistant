@@ -1,7 +1,10 @@
+import type { Citation } from "./types";
+
 export type ServerEvent =
   | { type: "text"; delta: string }
   | { type: "tool_call_started"; id: string; name: string }
   | { type: "tool_call_finished"; id: string; ok: boolean }
+  | { type: "citations"; chunks: Citation[] }
   | { type: "done" }
   | { type: "error"; message: string; code: string };
 
@@ -62,6 +65,8 @@ function parseBlock(block: string): ServerEvent | null {
         id: String(d.id),
         ok: !!d.ok,
       };
+    case "citations":
+      return { type: "citations", chunks: (d.chunks as Citation[]) ?? [] };
     case "done":
       return { type: "done" };
     case "error":
