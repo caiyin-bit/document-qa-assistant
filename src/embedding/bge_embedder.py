@@ -12,7 +12,7 @@ from sentence_transformers import SentenceTransformer
 
 
 class BgeEmbedder:
-    def __init__(self, model_path: str, device: str = "cpu") -> None:
+    def __init__(self, model_path: str = "BAAI/bge-large-zh-v1.5", device: str = "cpu") -> None:
         self._model_path = model_path
         self._device = device
 
@@ -31,3 +31,6 @@ class BgeEmbedder:
             texts, normalize_embeddings=True, convert_to_numpy=True, batch_size=16
         )
         return [v.tolist() for v in vecs]
+
+    def encode_one(self, text: str) -> list[float]:
+        return self.embed_batch([text])[0]
