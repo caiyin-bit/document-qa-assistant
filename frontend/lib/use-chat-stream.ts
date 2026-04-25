@@ -78,6 +78,8 @@ function applyEvent(prev: Message[], ev: ServerEvent): Message[] {
           : t,
       ),
     };
+  } else if (ev.type === "citations") {
+    copy[i] = { ...m, citations: ev.chunks };
   }
   return copy;
 }
