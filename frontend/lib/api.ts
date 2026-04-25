@@ -1,4 +1,4 @@
-import type { SessionSummary, HistoricalMessage } from "./types";
+import type { SessionSummary, HistoricalMessage, Document } from "./types";
 
 const BASE = process.env.NEXT_PUBLIC_API_BASE!;
 
@@ -24,4 +24,40 @@ export async function listMessages(
     throw new Error(`GET /sessions/${sessionId}/messages: ${r.status}`);
   }
   return r.json();
+}
+
+export async function uploadDocument(
+  sessionId: string, file: File
+): Promise<Document> {
+  const fd = new FormData();
+  fd.append('file', file);
+  const r = await fetch(`${BASE}/sessions/${sessionId}/documents`, {
+    method: 'POST', body: fd,
+  });
+  if (!r.ok) {
+    const detail = await r.json().catch(() => ({}));
+    throw new Error(detail.detail ?? `Upload failed: ${r.status}`);
+  }
+  return r.json();
+}
+
+export async function listDocuments(sessionId: string): Promise<Document[]> {
+  const r = await fetch(`${BASE}/sessions/${sessionId}/documents`);
+  if (!r.ok) throw new Error(`List failed: ${r.status}`);
+  return r.json();
+}
+
+export async function deleteDocument(
+  sessionId: string, documentId: string
+): Promise<void> {
+  const r = await fetch(
+    `${BASE}/sessions/${sessionId}/documents/${documentId}`,
+    { method: 'DELETE' }
+  );
+  if (r.status === 409) throw new Error('正在解析中，请稍后再删除');
+  if (!r.ok) throw new Error(`Delete failed: ${r.status}`);
+}
+
+export function progressUrl(sessionId: string, documentId: string): string {
+  return `${BASE}/sessions/${sessionId}/documents/${documentId}/progress`;
 }
