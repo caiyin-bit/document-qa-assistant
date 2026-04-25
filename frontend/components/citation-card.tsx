@@ -18,33 +18,60 @@ export function CitationCard({ citations }: Props) {
   }
 
   return (
-    <div className="mt-3 border-t border-gray-100 pt-3">
-      <div className="mb-2 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-        📚 来源（{citations.length}）
+    <div
+      className="mt-3 border-t pt-3"
+      style={{ borderColor: "var(--app-border-subtle)" }}
+    >
+      <div
+        className="mb-2 flex items-center gap-1 text-[11px] font-mono font-semibold uppercase tracking-wider"
+        style={{ color: "var(--app-text-tertiary)" }}
+      >
+        📚 来源 · CITATIONS ({citations.length})
       </div>
       <div className="flex flex-col gap-1.5">
         {citations.map((c, i) => (
           <div
             key={i}
             onClick={() => toggle(i)}
-            className="flex cursor-pointer items-start gap-2.5 rounded-md border border-gray-200 bg-gray-50 px-3 py-2.5 transition hover:border-gray-300 hover:bg-gray-100"
+            className="flex cursor-pointer items-start gap-2.5 rounded-md border px-3 py-2.5 transition hover:opacity-90"
+            style={{
+              backgroundColor: "var(--app-bg)",
+              borderColor: "var(--app-border-subtle)",
+            }}
           >
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-red-500 text-[9px] font-bold text-white">
+            <span
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-[9px] font-bold font-mono"
+              style={{
+                backgroundColor: "var(--app-pdf-badge-bg)",
+                color: "var(--app-pdf-badge-fg)",
+              }}
+            >
               PDF
             </span>
             <div className="min-w-0 flex-1">
-              <div className="text-[12px] font-medium text-gray-800">
+              <div
+                className="text-[12px] font-medium"
+                style={{ color: "var(--app-text-primary)" }}
+              >
                 {c.filename}
               </div>
               <div
-                className={`mt-0.5 text-[11px] leading-snug text-gray-500 ${
+                className={`mt-0.5 text-[11px] leading-snug font-mono ${
                   expanded.has(i) ? "" : "line-clamp-2"
                 }`}
+                style={{ color: "var(--app-text-secondary)" }}
               >
                 {c.snippet}
               </div>
             </div>
-            <span className="ml-2 shrink-0 rounded-sm bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-800">
+            <span
+              className="ml-2 shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] font-semibold font-mono"
+              style={{
+                backgroundColor: "var(--app-accent-bg)",
+                borderColor: "var(--app-accent-border)",
+                color: "var(--app-accent-text-light)",
+              }}
+            >
               p.{c.page_no}
             </span>
           </div>
