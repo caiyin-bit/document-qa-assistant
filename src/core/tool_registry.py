@@ -7,6 +7,10 @@ class ToolRegistry:
     def __init__(self, *args, **kwargs):
         pass
 
+    @classmethod
+    def default(cls, *args, **kwargs):
+        return cls()
+
     def schemas(self):
         return []
 

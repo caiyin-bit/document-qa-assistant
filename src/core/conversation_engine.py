@@ -9,16 +9,13 @@ from typing import AsyncIterator
 class ConversationEngine:
     """Placeholder. Replaced in Task 12."""
 
-    def __init__(self, *, mem=None, llm=None, tools=None, persona: str = ""):
-        self.mem = mem
-        self.llm = llm
-        self.tools = tools
-        self.persona = persona
+    def __init__(self, *args, **kwargs):
+        pass
 
-    async def handle(self, *, session_id, message: str) -> str:
+    async def handle(self, *args, **kwargs) -> str:
         return "(engine stub: implement Task 12)"
 
-    async def handle_stream(self, *, session_id, message: str) -> AsyncIterator:
+    async def handle_stream(self, *args, **kwargs) -> AsyncIterator:
         # Yield nothing — engine not yet implemented
         if False:
             yield None

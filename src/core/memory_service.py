@@ -11,8 +11,8 @@ from typing import Any
 class MemoryService:
     """Placeholder. Replaced in Task 4."""
 
-    def __init__(self, db):
-        self.db = db
+    def __init__(self, *args, **kwargs):
+        pass
 
 
 @dataclass
