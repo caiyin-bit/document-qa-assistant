@@ -1,4 +1,4 @@
-"""Seed (idempotent) the MVP demo broker user.
+"""Seed (idempotent) the demo user for document QA assistant.
 
 Behavior:
   - APP_USER_ID env set → use that UUID. If user exists, no-op + print.
@@ -33,7 +33,7 @@ async def main() -> None:
         if existing:
             print(f"✅ Demo user already exists: {existing.id} (no-op)")
         else:
-            u = User(id=target_id, name="demo broker")
+            u = User(id=target_id, name="demo")
             s.add(u)
             await s.commit()
             print(f"✅ Created demo user: {u.id}")
