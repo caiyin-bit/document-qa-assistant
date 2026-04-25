@@ -37,11 +37,11 @@ export function resolveInitialTheme(): Theme {
       ? "dark"
       : "light";
   }
-  return "dark"; // brand default
+  return "light"; // brand default
 }
 
 export function useTheme(): { theme: Theme; toggle: () => void } {
-  const [theme, setTheme] = useState<Theme>("dark");
+  const [theme, setTheme] = useState<Theme>("light");
 
   // Sync to whatever the anti-FOUC script set on first paint, then own it.
   useEffect(() => {

@@ -10,7 +10,7 @@ export function ThemeToggle() {
       onClick={toggle}
       type="button"
       aria-label={isDark ? "切换到浅色模式" : "切换到深色模式"}
-      className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[10px] font-mono uppercase tracking-wider transition"
+      className="inline-flex h-7 w-7 items-center justify-center rounded-md border transition hover:opacity-80"
       style={{
         backgroundColor: "var(--app-surface-elevated)",
         borderColor: "var(--app-border-subtle)",
@@ -19,8 +19,7 @@ export function ThemeToggle() {
           : "var(--app-accent)",
       }}
     >
-      {isDark ? <Moon className="h-3 w-3" /> : <Sun className="h-3 w-3" />}
-      {isDark ? "深色 · DARK" : "浅色 · LIGHT"}
+      {isDark ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />}
     </button>
   );
 }

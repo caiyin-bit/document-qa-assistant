@@ -46,9 +46,9 @@ describe("resolveInitialTheme", () => {
     expect(resolveInitialTheme()).toBe("light");
   });
 
-  it("falls back to dark when no stored, no matchMedia", () => {
+  it("falls back to light when no stored, no matchMedia", () => {
     // jsdom's matchMedia is undefined by default
-    expect(resolveInitialTheme()).toBe("dark");
+    expect(resolveInitialTheme()).toBe("light");
   });
 
   it("respects prefers-color-scheme: dark when no stored value", () => {

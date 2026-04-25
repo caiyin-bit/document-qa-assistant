@@ -8,18 +8,20 @@ describe("ThemeToggle", () => {
     delete document.documentElement.dataset.theme;
   });
 
-  it("renders the dark-mode label initially when default is dark", () => {
+  it("renders an icon button with an accessible aria-label", () => {
     render(<ThemeToggle />);
-    expect(screen.getByRole("button")).toHaveTextContent(/深色|浅色/);
+    expect(screen.getByRole("button").getAttribute("aria-label")).toMatch(
+      /切换到(浅色|深色)模式/,
+    );
   });
 
-  it("toggles label and dataset on click", () => {
-    document.documentElement.dataset.theme = "dark";
+  it("toggles aria-label and dataset on click", () => {
+    document.documentElement.dataset.theme = "light";
     render(<ThemeToggle />);
     const btn = screen.getByRole("button");
-    const before = btn.textContent;
+    const before = btn.getAttribute("aria-label");
     fireEvent.click(btn);
-    expect(btn.textContent).not.toBe(before);
-    expect(document.documentElement.dataset.theme).toBe("light");
+    expect(btn.getAttribute("aria-label")).not.toBe(before);
+    expect(document.documentElement.dataset.theme).toBe("dark");
   });
 });
