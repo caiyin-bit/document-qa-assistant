@@ -5,6 +5,7 @@ import { Plus, X } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { createSession, deleteSession } from "@/lib/api";
 import type { SessionSummary } from "@/lib/types";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 type Props = {
   sessions: SessionSummary[];
@@ -41,22 +42,38 @@ export function SessionsSidebar({
   }
 
   return (
-    <aside className="flex h-full w-[220px] flex-col border-r border-gray-200 bg-gray-50">
+    <aside
+      className="flex h-full w-[220px] flex-col border-r"
+      style={{
+        backgroundColor: "var(--app-bg-sidebar)",
+        borderColor: "var(--app-border-divider)",
+      }}
+    >
       <div className="px-3 py-3">
         <button
           onClick={handleNew}
-          className="flex w-full items-center justify-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-indigo-50 hover:text-indigo-700"
+          className="flex w-full items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition hover:opacity-90"
+          style={{
+            backgroundColor: "var(--app-accent)",
+            color: "var(--app-text-on-accent)",
+          }}
         >
           <Plus className="h-4 w-4" /> 新对话
         </button>
       </div>
-      <div className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-        会话
+      <div
+        className="px-3 pb-1.5 text-[10px] font-mono font-semibold uppercase tracking-wider"
+        style={{ color: "var(--app-text-tertiary)" }}
+      >
+        会话 · SESSIONS
       </div>
       <ScrollArea className="flex-1">
         <ul className="px-2 pb-3">
           {sessions.length === 0 && (
-            <li className="px-2 py-1.5 text-[11px] text-gray-400">
+            <li
+              className="px-2 py-1.5 text-[11px]"
+              style={{ color: "var(--app-text-faint)" }}
+            >
               （暂无）
             </li>
           )}
@@ -65,23 +82,32 @@ export function SessionsSidebar({
             return (
               <li key={s.session_id}>
                 <div
-                  onClick={() =>
-                    router.push(`/?session=${s.session_id}`)
-                  }
-                  className={`group relative mb-1 cursor-pointer rounded border px-2.5 py-1.5 transition ${
-                    active
-                      ? "border-indigo-200 bg-indigo-50 text-indigo-900"
-                      : "border-transparent text-gray-700 hover:bg-gray-100"
-                  }`}
+                  onClick={() => router.push(`/?session=${s.session_id}`)}
+                  className="group relative mb-1 cursor-pointer rounded border px-2.5 py-1.5 transition"
+                  style={{
+                    backgroundColor: active
+                      ? "var(--app-accent-bg)"
+                      : "transparent",
+                    borderColor: active
+                      ? "var(--app-accent-border)"
+                      : "transparent",
+                    color: active
+                      ? "var(--app-text-primary)"
+                      : "var(--app-text-secondary)",
+                  }}
                 >
                   <div className="truncate pr-5 text-[12px]">{s.title}</div>
-                  <div className="mt-0.5 text-[10px] text-gray-400">
+                  <div
+                    className="mt-0.5 text-[10px] font-mono"
+                    style={{ color: "var(--app-text-faint)" }}
+                  >
                     {new Date(s.created_at).toLocaleString("zh-CN")}
                   </div>
                   <button
                     onClick={(e) => handleDelete(e, s.session_id)}
                     aria-label="删除会话"
-                    className="absolute right-1.5 top-1.5 rounded p-0.5 text-gray-400 opacity-0 transition hover:bg-white hover:text-red-600 group-hover:opacity-100"
+                    className="absolute right-1.5 top-1.5 rounded p-0.5 opacity-0 transition hover:bg-red-500/10 group-hover:opacity-100"
+                    style={{ color: "var(--app-text-faint)" }}
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -91,6 +117,12 @@ export function SessionsSidebar({
           })}
         </ul>
       </ScrollArea>
+      <div
+        className="border-t px-3 py-2"
+        style={{ borderColor: "var(--app-border-subtle)" }}
+      >
+        <ThemeToggle />
+      </div>
     </aside>
   );
 }
