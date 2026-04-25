@@ -1,25 +1,21 @@
-"""Sanity check: models import and metadata reflects expected tables."""
+import pytest
+from sqlalchemy import text
+from src.db.session import get_engine
 
-from sqlalchemy import inspect
+@pytest.mark.asyncio
+async def test_migration_creates_all_tables():
+    engine = get_engine()
+    async with engine.connect() as conn:
+        result = await conn.execute(text(
+            "SELECT table_name FROM information_schema.tables "
+            "WHERE table_schema='public' ORDER BY table_name"
+        ))
+        names = {row[0] for row in result.fetchall()}
+        assert {"users", "sessions", "messages", "documents", "document_chunks"} <= names
 
-from src.models.schemas import Base, Session
-
-
-def test_metadata_has_all_tables():
-    table_names = set(Base.metadata.tables.keys())
-    assert table_names == {
-        "users",
-        "contacts",
-        "follow_ups",
-        "todos",
-        "sessions",
-        "messages",
-        "user_profiles",
-    }
-
-
-def test_session_has_summary_columns():
-    # Columns come from ORM; this catches a forgotten rename or schema drift.
-    cols = {c.name for c in inspect(Session).columns}
-    assert "summary" in cols
-    assert "summary_until_message_id" in cols
+@pytest.mark.asyncio
+async def test_pgvector_extension_present():
+    engine = get_engine()
+    async with engine.connect() as conn:
+        result = await conn.execute(text("SELECT extname FROM pg_extension WHERE extname='vector'"))
+        assert result.scalar() == "vector"

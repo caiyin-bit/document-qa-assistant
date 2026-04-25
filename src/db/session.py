@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncIterator
 
 from sqlalchemy.ext.asyncio import (
@@ -13,6 +14,12 @@ from sqlalchemy.ext.asyncio import (
 
 
 def make_engine(db_url: str) -> AsyncEngine:
+    return create_async_engine(db_url, pool_size=5, max_overflow=5, echo=False)
+
+
+def get_engine() -> AsyncEngine:
+    """Return an AsyncEngine from DATABASE_URL env var."""
+    db_url = os.environ["DATABASE_URL"]
     return create_async_engine(db_url, pool_size=5, max_overflow=5, echo=False)
 
 
