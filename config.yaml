@@ -1,0 +1,45 @@
+app:
+  env: dev
+  log_level: INFO
+
+db:
+  url: "postgresql+asyncpg://postgres:postgres@localhost:5432/chat"
+
+llm:
+  provider: siliconflow
+  base_url: "https://api.siliconflow.cn/v1"
+  model_id: "Pro/moonshotai/Kimi-K2.6"   # 硅基流动付费版 slug
+  mode: instant
+  api_key_env: MOONSHOT_API_KEY
+
+embedding:
+  model_path: "BAAI/bge-large-zh-v1.5"
+  dim: 1024
+  device: cpu
+
+memory:
+  compress_trigger_threshold: 32   # 未压缩 messages 达到此数触发压缩
+  compress_keep_recent: 16         # 触发后保留近 N 条原文(压缩切点位置)
+  retrieve_top_k: 5
+  similarity_threshold: 0.55
+
+conversation:
+  max_tool_iterations: 3
+
+persona:
+  identity_path: "persona/IDENTITY.md"
+  soul_path: "persona/SOUL.md"
+
+app_user:
+  default_user_id_env: APP_USER_ID
+
+retrieval:
+  min_similarity: 0.35   # cosine; T2.5 to calibrate
+  top_k: 16              # initial pool before threshold filter
+  top_n: 8               # returned to LLM
+  oversize_max_tokens: 500
+  overlap_tokens: 80
+
+ingestion:
+  upload_max_bytes: 20971520   # 20 MB
+  ingestion_timeout_seconds: 300

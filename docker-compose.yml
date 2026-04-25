@@ -1,0 +1,59 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: chat
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d chat"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: .
+    command: >
+      sh -c "uv run alembic upgrade head &&
+             uv run python scripts/seed_demo_user.py &&
+             uv run uvicorn src.main:make_app_default --factory --host 0.0.0.0 --port 8000 --reload"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/chat
+      MOONSHOT_API_KEY: ${MOONSHOT_API_KEY}
+      MOONSHOT_BASE_URL: ${MOONSHOT_BASE_URL:-https://api.siliconflow.cn/v1}
+      MOONSHOT_MODEL_ID: ${MOONSHOT_MODEL_ID:-Pro/moonshotai/Kimi-K2.6}
+      APP_USER_ID: ${APP_USER_ID:-00000000-0000-0000-0000-000000000001}
+    volumes:
+      - ./src:/app/src
+      - ./persona:/app/persona
+      - ./scripts:/app/scripts
+      - ./config.yaml:/app/config.yaml
+      - bge_cache:/root/.cache/huggingface
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    command: pnpm dev
+    environment:
+      NEXT_PUBLIC_API_BASE: http://localhost:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  bge_cache:

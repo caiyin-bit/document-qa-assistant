@@ -32,3 +32,4 @@ frontend/out/
 
 # Uploaded files (dev only — prod uses object storage)
 data/uploads/
+data/uploads/.tmp/
