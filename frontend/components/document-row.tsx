@@ -17,8 +17,9 @@ export function DocumentRow({ sessionId, doc, onDelete }: Props) {
   );
 
   if (doc.status === "processing") {
-    const page = (progress as { page?: number } | null)?.page ??
-                 doc.progress_page ?? 0;
+    const live = progress as { page?: number; phase?: string } | null;
+    const page = live?.page ?? doc.progress_page ?? 0;
+    const phase = live?.phase ?? "ingesting";
     const total = doc.page_count;
     const pct = total ? Math.round((page / total) * 100) : 0;
     return (
@@ -55,7 +56,7 @@ export function DocumentRow({ sessionId, doc, onDelete }: Props) {
           className="mt-1 text-[10px] font-mono"
           style={{ color: "var(--app-status-warn-fg)" }}
         >
-          向量化 {page} / {total}
+          {phaseDetail(phase, page, total)}
         </div>
       </div>
     );
@@ -133,6 +134,23 @@ export function DocumentRow({ sessionId, doc, onDelete }: Props) {
       )}
     </div>
   );
+}
+
+// Maps the backend's progress_phase tag to a Chinese caption shown under the
+// progress bar. The "loading" phase has no page count to show — it's the
+// pre-loop window when BGE is being lazy-imported into memory (~15-30s on
+// first ingestion). Falls back to a generic "解析" if phase is missing.
+function phaseDetail(phase: string, page: number, total: number): string {
+  if (phase === "loading") return "正在加载嵌入模型…";
+  const verb =
+    phase === "extracting"
+      ? "提取文本"
+      : phase === "embedding"
+        ? "向量化"
+        : phase === "inserting"
+          ? "入库"
+          : "解析";
+  return `${verb} ${page} / ${total}`;
 }
 
 function FileBadge() {

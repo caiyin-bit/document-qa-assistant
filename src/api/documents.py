@@ -173,8 +173,11 @@ def make_documents_router(*, embedder: BgeEmbedder) -> APIRouter:
                            json.dumps({"status": status, "error": doc.error_message},
                                       ensure_ascii=False) + "\n\n")
                     return
-                payload = {"page": doc.progress_page,
-                           "total": doc.page_count, "phase": "ingesting"}
+                payload = {
+                    "page": doc.progress_page,
+                    "total": doc.page_count,
+                    "phase": doc.progress_phase or "ingesting",
+                }
                 yield "event: progress\ndata: " + json.dumps(payload) + "\n\n"
                 await asyncio.sleep(0.5)
 
