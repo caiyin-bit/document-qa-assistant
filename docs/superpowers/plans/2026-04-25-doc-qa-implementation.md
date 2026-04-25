@@ -4147,19 +4147,16 @@ git commit -m "docs: README + 6 verification screenshots"
 
 ## Task 27: Push to GitHub + Final Smoke
 
-**Goal:** Push the public repo to GitHub. Verify clone-and-run works.
+**Goal:** Push to existing public repo `caiyin-bit/document-qa-assistant`. Verify clone-and-run works.
 
 **Files:** none (operational)
 
-- [ ] **Step 1: Create the public repo on GitHub**
+> Note: The GitHub repo already exists at https://github.com/caiyin-bit/document-qa-assistant.
+> The remote `origin` was wired up at session start. Auth setup (collaborator
+> grant or `gh auth login` for the right account) was resolved separately —
+> this task assumes `git push` succeeds.
 
-```bash
-gh repo create document-qa-assistant --public --source=. \
-  --description "PDF document QA assistant — Chinese, with page-level citations" \
-  --remote=origin
-```
-
-- [ ] **Step 2: Push all commits**
+- [ ] **Step 1: Push all commits**
 
 ```bash
 git push -u origin main
@@ -4170,7 +4167,7 @@ git push -u origin main
 ```bash
 cd /tmp
 rm -rf doc-qa-smoke
-gh repo clone <your-username>/document-qa-assistant doc-qa-smoke
+gh repo clone caiyin-bit/document-qa-assistant doc-qa-smoke
 cd doc-qa-smoke
 cp .env.example .env
 echo "MOONSHOT_API_KEY=$MOONSHOT_API_KEY" >> .env
