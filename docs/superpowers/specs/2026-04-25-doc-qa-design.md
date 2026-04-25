@@ -158,19 +158,26 @@ class DocumentChunk:                  # NEW
 ```
 POST /sessions/{session_id}/documents (multipart/form-data)
   1. 校验：session 归属、扩展名 .pdf、大小 ≤ 20MB
-  2. 持久化文件到 data/uploads/{document_id}.pdf
-  3. 同步打开 PDF 做轻量验证（<100ms）：
-     a. pdfplumber.open(...) 失败 → 400 "无法打开 PDF（损坏？）"
-     b. PDF 加密（pdf.metadata 检查 / open 抛 EncryptedPdfError）→ 400 "PDF 已加密"
-     c. 取 page_count = len(pdf.pages)；page_count == 0 → 400 "空 PDF"
+  2. 写入 temp path：data/uploads/.tmp/{uuid4}.pdf（确保此目录存在）
+  3. 同步打开 temp 文件做轻量验证（<100ms）：
+     a. pdfplumber.open(...) 失败 → unlink temp + 400 "无法打开 PDF（损坏？）"
+     b. PDF 加密（open 抛 EncryptedPdfError）→ unlink temp + 400 "PDF 已加密"
+     c. 取 page_count = len(pdf.pages)；page_count == 0 → unlink temp + 400 "空 PDF"
      注意：不在此处抽 extract_text() 检测"扫描版"——open 不抽文本，
      抽样会增加上传延迟且对带封面图的混合 PDF 误判。检测下放到 ingestion。
-  4. INSERT documents (
-       status=processing, page_count=N, progress_page=0,
-       ingestion_started_at=now()
+  4. 分配 document_id = uuid4()
+  5. INSERT documents (
+       id=document_id, status=processing, page_count=N,
+       progress_page=0, ingestion_started_at=now()
      )
-  5. 启动 asyncio.create_task(_ingest_with_timeout(doc_id))
-  6. 返回 {document_id, status: "processing", page_count: N}
+     - INSERT 失败 → unlink temp + 500
+  6. 原子 rename：os.replace(temp_path, data/uploads/{document_id}.pdf)
+     - rename 失败（极少见，跨设备等）→ DELETE documents row + unlink temp + 500
+  7. 启动 asyncio.create_task(_ingest_with_timeout(doc_id))
+  8. 返回 {document_id, status: "processing", page_count: N}
+
+**清理保证**：任何上传失败路径都不会留下孤儿文件或孤儿 DB 行。
+正式路径 `data/uploads/{document_id}.pdf` 一旦存在，必有同 ID 的 documents 行。
 
 后台 _ingest_document(doc_id):
   total_chunks = 0
@@ -245,21 +252,33 @@ async def _ingest_with_timeout(doc_id):
 ```
 DELETE /sessions/{session_id}/documents/{document_id}
   1. 校验 session 归属
-  2. 删 ORM 记录：DELETE FROM documents WHERE id=:doc_id
-     (FK CASCADE 自动删 document_chunks 全部行)
-  3. 删磁盘文件：os.unlink(data/uploads/{document_id}.pdf)
+  2. SELECT status FROM documents WHERE id=:doc_id
+     - 不存在 → 404
+     - status='processing' → 409 "文档正在解析中，请等待完成或解析超时（≤5min）后再删除"
+       （理由：见下方"为什么不支持删除 processing"）
+     - status in ('ready', 'failed') → 继续
+  3. DELETE FROM documents WHERE id=:doc_id
+     (FK CASCADE 自动删 document_chunks)
+  4. 删磁盘文件：os.unlink(data/uploads/{document_id}.pdf)
      (失败不阻塞 —— DB 已是真相之源；记 warn 日志)
-  4. 不修改历史 messages.citations
-  5. 返回 204
+  5. 不修改历史 messages.citations
+  6. 返回 204
 ```
 
+**为什么不支持删除 processing**：
+- 后台 `_ingest_document` 并不知道 doc 被删，会继续 INSERT chunks → FK violation 抛错；
+  或读已删文件失败抛错；产生大量 log 噪音 + 浪费 BGE 算力
+- 实现 cancel 信号需引入 task 注册表 + 每页轮询 cancel flag → 复杂度激增（属 V2+）
+- 用户体验上：5min 超时后会自动 failed，可立即删除；失败也可立即删除
+- README 在"已知限制"小节写明此约束
+
 **为什么不动 messages.citations**：
-- citations JSONB 里存的是 `{filename, page_no, snippet}` —— 自包含，不依赖 doc_id
+- citations JSONB 里存的是 `{doc_id, filename, page_no, snippet, score}` —— 自包含，不依赖 documents 表
 - 历史对话保留来源信息符合用户预期（"当时这个回答的依据是什么"）
 - 前端 CitationCard 渲染不需要回查 documents 表
 - 避免删一个 doc 要扫全表 messages 的开销
 
-**副作用**：删除已 ready 的文档会让该会话之后的检索结果不再包含它（`WHERE status='ready'` 自动过滤），符合直觉。
+**副作用**：删除已 ready 的文档会让该会话之后的检索不再包含它（`WHERE status='ready'` 自动过滤），符合直觉。
 
 ### Chunker 策略
 
@@ -457,7 +476,7 @@ FROM documents WHERE session_id = :sid
 | B-PROCESSING | 仅 processing（无 ready） | `文档正在解析中，请稍候再提问。` | `正在解析中` |
 | B-FAILED | 仅 failed（无 ready/processing） | `已上传的文档解析失败，请删除后重新上传。` | `解析失败` |
 
-**实现**：B-* 模板不走 LLM、不调 tool，`_prepare_round` 直接返回 fixed response，节省 round-trip 和 token。SSE 仍按正常流程发 `text` + `done`，但 citations 永远为空。
+**实现**：B-* 模板不走 LLM、不调 tool，`_prepare_round` 直接返回 fixed response，节省 round-trip 和 token。SSE 流统一发 `text → citations(chunks=[]) → done` 三个事件（详见 §7），前端无需分支判断。
 
 ---
 
@@ -475,7 +494,33 @@ FROM documents WHERE session_id = :sid
 ### 新增事件
 | event | data | 用途 |
 |---|---|---|
-| `citations` | `{"chunks": [{filename, page_no, snippet}]}` | 绑定 assistant final message 的来源；空数组表示无来源 |
+| `citations` | `{"chunks": Citation[]}` | 绑定 assistant final message 的来源；空数组表示无来源；**所有** chat SSE 流必发，含 B-* 模板 |
+
+### Citation DTO
+
+后端 → 前端唯一的引用结构。复用同一个 DTO 在 SSE event、`Message.citations` 持久化、API 响应。
+
+```python
+class Citation(BaseModel):
+    doc_id: str           # UUID 字符串；前端可用于"该来源的文档是否还存在"判断
+    filename: str         # 原始文件名，UI 直接显示
+    page_no: int          # 1-based
+    snippet: str          # = chunk.content[:480]，末尾若被截断则添加 "…"
+                          #   480 字符 ≈ 卡片"展开后"完整可读；UI 默认 line-clamp-2
+                          #   显示约前 120 字符（2 行），点击展开看全部
+    score: float          # 检索 cosine similarity；UI 不显示，用于 debug + 排序
+```
+
+**snippet 派生规则**：
+```python
+def to_snippet(content: str, max_chars: int = 480) -> str:
+    if len(content) <= max_chars:
+        return content
+    truncated = content[:max_chars].rstrip()
+    return truncated + "…"
+```
+
+**Message.citations 持久化**：JSONB 数组，每元素结构同 Citation DTO；删除 documents 后历史 citations 仍可独立渲染（snippet/filename/page 自包含）。
 
 **citations 事件的发射时机（关键）**：
 
@@ -500,17 +545,21 @@ elif not tool_responses or all(not r.found for r in tool_responses):
     citations = []
 else:
     # 模板 A 且至少一次 found=true
-    citations = collected_chunks
+    citations = [Citation.from_chunk(c) for c in collected_chunks]
 ```
 
-发射流程：
+发射流程（**所有** chat SSE 路径统一**必发**，包含 B-*）：
 ```
-1. LLM 流式输出 → 累积 final_text；同步累积 tool_responses + collected_chunks
-2. LLM 完成（finish_reason=stop）后，按上面决策计算 citations
-3. yield StreamEvent.citations(chunks=citations)
+1. LLM 流式输出（B-* 直接 yield 固定句的 text deltas）
+   → 累积 final_text；同步累积 tool_responses + collected_chunks
+2. LLM 完成后按上面决策计算 citations（B-* 永远 []）
+3. yield StreamEvent.citations(chunks=citations)   ← 必发，即使 chunks=[]
 4. yield StreamEvent.done()
 5. 持久化 assistant message 时一并写入 message.citations
 ```
+
+**为什么 B-* 也发空 citations**：前端只有一条流处理路径，不需要 if/else 分支判断；
+`citations` 始终是"本轮回答的最终结果"信号，UI 渲染逻辑统一为 `if msg.citations.length > 0 then render CitationCard`。
 
 **已知边界**：模板 A + tool found=true 但 LLM 仍回"未找到"（罕见模型抖动）→ UI 会显示 citations。可接受，因为 chunks 确实作为证据传给了 LLM；如频繁发生则收紧 prompt（不通过 UI hack 修复）。
 
@@ -617,11 +666,11 @@ else:
 |---|---|
 | `tests/unit/test_pdf_parser.py` | 中文 PDF fixture：页文本提取、空白页跳过、不乱码；加密 PDF 上传报 400 |
 | `tests/unit/test_chunker.py` | 7 个边界（见 §4 末）：空白页 / 短段 / 恰好 500 / 多段超 / 单段超 / tail+para 退化 / 单句超 |
-| `tests/unit/test_api_documents.py` | 上传 happy / 大文件拒绝 / 非 PDF 拒绝 / 加密 PDF 拒绝 / 空 PDF 拒绝 / 状态轮询 |
-| `tests/unit/test_delete_document.py` | DELETE：cascade chunks、文件移除、messages.citations 保留不变、不存在 doc 返回 404 |
+| `tests/unit/test_api_documents.py` | 上传 happy / 大文件拒绝 / 非 PDF 拒绝 / 加密 PDF 拒绝 / 空 PDF 拒绝 / 校验失败时 temp 文件被清理（无孤儿） / 状态轮询 |
+| `tests/unit/test_delete_document.py` | DELETE：ready/failed 成功（cascade chunks、文件移除、messages.citations 保留不变）；processing 返回 409；不存在 doc 返回 404 |
 | `tests/unit/test_ingestion_scanned.py` | 扫描版/纯图像 PDF：所有页 extract_text 为空 → status=failed + 描述性 error |
-| `tests/unit/test_search_documents.py` | 检索范围隔离（不同 session）/ 阈值过滤 / found=true/false 分支 / top-k 排序 |
-| `tests/unit/test_conversation_engine.py` | 4 模板分发（A / B-EMPTY / B-PROCESSING / B-FAILED）+ citations 结构化绑定（B-* → []，A+found=false → []，A+found=true → chunks） |
+| `tests/unit/test_search_documents.py` | 检索范围隔离（不同 session）/ 阈值过滤 / found=true/false 分支 / top-k 排序 / Citation DTO snippet 截断（≤480 + "…"） |
+| `tests/unit/test_conversation_engine.py` | 4 模板分发（A / B-EMPTY / B-PROCESSING / B-FAILED）+ citations 结构化绑定（B-* → []，A+found=false → []，A+found=true → chunks）+ **所有路径都发 citations event**（含 B-*） |
 | `tests/unit/test_startup_recovery.py` | 模拟 stale processing → startup 后被标 failed（带 error_message） |
 | `tests/unit/test_sse.py` | citations / progress 事件编码解码 |
 | `tests/e2e/test_doc_qa.py` | 用腾讯年报跑 4 类问题：事实/摘要/对比/边界；4 个 no-answer 子模板各断言对应子串 + citations=[] |
@@ -739,7 +788,9 @@ docker compose up
 
 ## 配置
 
-只需一个环境变量：MOONSHOT_API_KEY (硅基流动 API)
+环境变量：
+- `MOONSHOT_API_KEY` (必填) — 硅基流动 API key
+- `MIN_SIMILARITY` (可选，默认 0.35) — 检索相关性阈值。default 0.35 基于腾讯年报校准；不同领域 PDF 可能需要调整，运行 `scripts/calibrate_threshold.py` 输出建议值
 
 ## 演示
 
@@ -795,7 +846,7 @@ cd frontend && pnpm test            # 前端测试
 |---|---|---|
 | Day 1 上午 (4h) | T1 | Scaffold copy + 清理 + alembic 重写 + PDF parser + chunker + 单测 |
 | Day 1 下午 (4h) | T2 | 上传 API + 启动恢复 + 删除端点 + search_documents tool + prompt 4 模板 |
-| Day 1 晚 (1h) | T2.5 | **`scripts/calibrate_threshold.py`**：跑 3 相关 + 3 无关 query，输出分数表，写回 config 默认值 |
+| Day 1 晚 (1h) | T2.5 | **`scripts/calibrate_threshold.py`**：跑 3 相关 + 3 无关 query，stdout 输出分数表 + 建议阈值 + 一行 `MIN_SIMILARITY=` 示例。**不**改 config 默认值（避免本地调参泄漏 + 跨模型/PDF 漂移）；按需写到 `.env` |
 | Day 1 晚 (1.5h) | T3 | citations 结构化绑定逻辑 + 后端 E2E（4 类问题，含 4 个 no-answer 子模板） |
 | Day 2 上午 (4h) | T4 | 前端：empty state + top bar + 三态 row + 上传进度 SSE 订阅 |
 | Day 2 下午 (4h) | T5 | citation 卡片渲染 + 输入框联动 + 历史保留验证 |
@@ -843,7 +894,7 @@ cd frontend && pnpm test            # 前端测试
 | pdfplumber 对扫描版/复杂排版年报解析质量差 | 中 | 高 | 上传端点拒绝加密/损坏；ingestion 后 chunks=0 标 failed + 描述性 error；E2E 用挑战附带腾讯年报预先验证；README 标注扫描版不支持 |
 | BGE 模型首次下载慢（~1GB） | 高 | 中 | docker-compose 启动文档明确写"首次约 5-10 分钟" |
 | 数值/比较类问题召回不全 | 中 | 中 | top-8 + prompt 强约束 LLM 在召回不全时按标准句回答 |
-| 相关性阈值 0.35 在不同 PDF 上不准 | 中 | 中 | 阈值放 config；T2.5 跑 `calibrate_threshold.py`（3 相关 + 3 无关 query）输出分数表，按 gap 调；README 写明可调 |
+| 相关性阈值 0.35 在不同 PDF 上不准 | 中 | 中 | 阈值通过 `MIN_SIMILARITY` 环境变量覆盖（不改 config 默认）；T2.5 跑 `calibrate_threshold.py` 输出建议值；README 写明 default 0.35 是基于腾讯年报校准，不同领域需重跑 |
 | 进程重启导致 processing 卡死 | 高 | 中 | startup hook 扫 stale processing → failed；单条 ingestion 5min 超时 |
 | Moonshot API 限流 | 低 | 中 | 已有 tenacity 重试 |
 | 前端聊天 SSE 与上传进度 SSE 并发冲突 | 低 | 低 | 不同 endpoint，浏览器并行；EventSource 各自管理 |
