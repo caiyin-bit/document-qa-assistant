@@ -8,7 +8,18 @@
 
 ## 1. 项目目标
 
-一个 PDF 文档问答聊天机器人。用户上传 PDF 后，可以用自然语言提问，机器人**只**基于文档内容作答，并附带页码出处。文档外的问题必须如实告知"未在已上传文档中找到"，禁止编造。
+一个 PDF 文档问答聊天机器人。用户上传 PDF 后，可以用自然语言提问，机器人**只**基于文档内容作答，并附带页码出处。文档外的问题必须如实告知"未找到"，禁止编造。
+
+### 标准回应文案（全系统统一）
+
+为保证 E2E 测试稳定 + 用户体验一致，定义两个标准 no-answer 句：
+
+| 场景 | 标准回应（含子串） |
+|---|---|
+| 当前会话尚未上传任何文档 | `"请先上传 PDF 文档以开始提问。"`（断言子串 `请先上传`） |
+| 已上传文档但找不到相关信息（含文档外问题） | `"在已上传文档中未找到相关信息。"`（断言子串 `未找到相关信息`） |
+
+后续 prompt、E2E 断言、UI 提示均引用上述两个句子。
 
 ### 验收三类问题（基于挑战附带的腾讯 2025 年报）
 
@@ -17,7 +28,7 @@
 | 事实检索 | "2025 总营收？" | 答出数字 + 引用对应页码 |
 | 章节摘要 | "总结主要业务板块" | 综合 3+ 处来源 + 列出引用页 |
 | 数值/比较推理 | "2025 vs 2024 净利润增长" | 答出比较结果 + 引用两年数据所在页 |
-| 边界（文档外） | "今天天气如何？" | 明确说"未在已上传文档中找到相关信息" |
+| 边界（文档外） | "今天天气如何？" | 命中 `未找到相关信息` 子串，无 citations |
 
 ### 工程目标
 - 2 天交付（演示 + 工程质量并重）
@@ -42,12 +53,12 @@
 │  FastAPI 后端                             │
 │  ├─ POST /sessions                        │
 │  ├─ GET  /sessions                        │
-│  ├─ GET  /sessions/{id}/messages          │
-│  ├─ POST /chat/stream      (SSE)          │
-│  ├─ POST /sessions/{id}/documents (上传) │
-│  ├─ GET  /sessions/{id}/documents (列表)  │
-│  ├─ DELETE /sessions/{id}/documents/{id}  │
-│  └─ GET  /sessions/{id}/documents/{id}/progress (SSE) │
+│  ├─ GET    /sessions/{session_id}/messages          │
+│  ├─ POST   /chat/stream                              (SSE) │
+│  ├─ POST   /sessions/{session_id}/documents          │
+│  ├─ GET    /sessions/{session_id}/documents          │
+│  ├─ DELETE /sessions/{session_id}/documents/{document_id} │
+│  └─ GET    /sessions/{session_id}/documents/{document_id}/progress (SSE) │
 │        ↓                                  │
 │  ConversationEngine                       │
 │        ↓                                  │
@@ -113,12 +124,13 @@ class Document:                       # NEW
     user_id: UUID FK
     session_id: UUID FK NOT NULL      # 会话级隔离
     filename: str
-    page_count: int
+    page_count: int                   # NOT NULL — 上传端点同步打开 PDF 取页数后才 INSERT
     byte_size: int
     status: enum(processing, ready, failed)
     error_message: str | None
-    progress_page: int | None         # 当前已处理到第 N 页
+    progress_page: int                # NOT NULL，default 0；ingestion 中递增
     uploaded_at: timestamp
+    ingestion_started_at: timestamp | None   # 用于超时检测（>5min 视为 stale）
 
 class DocumentChunk:                  # NEW
     id: UUID PK
@@ -142,60 +154,159 @@ class DocumentChunk:                  # NEW
 ## 4. 上传 → 入库流程
 
 ```
-POST /sessions/{sid}/documents (multipart/form-data)
+POST /sessions/{session_id}/documents (multipart/form-data)
   1. 校验：session 归属、扩展名 .pdf、大小 ≤ 20MB
-  2. INSERT documents (status=processing, progress_page=0)
-  3. 启动 asyncio.create_task(_ingest_document(...))
-  4. 立即返回 {document_id, status: "processing"}
+  2. 持久化文件到 data/uploads/{document_id}.pdf
+  3. 同步打开 PDF 拿 page_count（pdfplumber.open，<100ms for 100页）
+     - 失败（损坏/加密/扫描版无文本）→ 立刻返回 400，不入库
+  4. INSERT documents (
+       status=processing, page_count=N, progress_page=0,
+       ingestion_started_at=now()
+     )
+  5. 启动 asyncio.create_task(_ingest_document(doc_id))
+  6. 返回 {document_id, status: "processing", page_count: N}
 
-后台 _ingest_document(doc_id, file_path):
+后台 _ingest_document(doc_id):
   try:
-    pages = pdfplumber.open(...).pages       # 逐页提取
-    for i, page in enumerate(pages):
-      text = page.extract_text() or ""
-      chunks_for_page = chunker.chunk(text, page_no=i+1)
-      embeddings = bge.encode_batch([c.content for c in chunks_for_page])
-      await db.bulk_insert_chunks(...)
-      await db.update_document(doc_id, progress_page=i+1)
-    await db.update_document(doc_id, status=ready, page_count=len(pages))
+    with pdfplumber.open(file_path) as pdf:
+      for i, page in enumerate(pdf.pages):
+        text = page.extract_text() or ""
+        chunks = chunker.chunk(text, page_no=i+1)
+        if chunks:
+          embeddings = bge.encode_batch([c.content for c in chunks])
+          await db.bulk_insert_chunks(doc_id, chunks, embeddings)
+        await db.update_document(doc_id, progress_page=i+1)
+    await db.update_document(doc_id, status=ready)
   except Exception as e:
-    await db.update_document(doc_id, status=failed, error_message=str(e))
+    await db.update_document(doc_id, status=failed, error_message=str(e)[:500])
+    log.exception("ingestion failed for %s", doc_id)
 
-GET /sessions/{sid}/documents/{did}/progress (SSE)
-  - 每 500ms 查询 documents.progress_page，推送：
+GET /sessions/{session_id}/documents/{document_id}/progress (SSE)
+  - 每 500ms 查询 documents 表，推送：
     event: progress
-    data: {"page": 45, "total": 89, "phase": "ingesting"}
+    data: {"page": progress_page, "total": page_count, "phase": "ingesting"}
   - status=ready/failed 时推送 done 事件并关闭流
 ```
 
-### Chunker 策略
+### 启动恢复 + 超时清理（关键）
 
+`asyncio.create_task` 是 in-memory 后台任务，进程重启 / dev reload / crash 都会丢失。需要两道防护：
+
+**a) App startup hook**（src/main.py 启动时执行一次）：
 ```python
-def chunk(text: str, page_no: int) -> list[Chunk]:
+@app.on_event("startup")
+async def cleanup_stale_documents():
+    """把所有上次进程残留的 processing 标为 failed。
+    任何重启都会重置卡死状态，与 'docker restart 历史保留' 验收兼容
+    （已 ready 的文档完全不受影响）。
     """
-    按段落聚合到 ≤500 token，overlap 80 token。
-    页边界硬切（不跨页），保证 page_no 准确。
-    """
-    paragraphs = split_paragraphs(text)
-    chunks = []
-    buf = ""
-    for para in paragraphs:
-        if token_count(buf + para) <= 500:
-            buf += para + "\n\n"
-        else:
-            if buf:
-                chunks.append(Chunk(content=buf, page_no=page_no))
-            # overlap：取上一段末尾 80 token 接到新段开头
-            buf = take_tail_tokens(buf, 80) + para + "\n\n"
-    if buf:
-        chunks.append(Chunk(content=buf, page_no=page_no))
-    return chunks
+    await db.execute("""
+        UPDATE documents
+           SET status = 'failed',
+               error_message = '解析中断（服务重启）'
+         WHERE status = 'processing'
+    """)
 ```
 
-边界：
-- 空段落 → 跳过
-- 单段超 500 token → 按句号硬切
-- 整页空白 → 跳过该页（page_no 不创建 chunk）
+**b) 单条 ingestion 软超时**（5 分钟）：
+```python
+# 在 _ingest_document 外层包 asyncio.wait_for
+async def _ingest_with_timeout(doc_id):
+    try:
+        await asyncio.wait_for(_ingest_document(doc_id), timeout=300)
+    except asyncio.TimeoutError:
+        await db.update_document(doc_id, status='failed',
+                                  error_message='解析超时（>5 分钟）')
+```
+
+这两个机制保证：
+- 重启不留卡死的 processing
+- 单个异常 PDF 不会无限挂起
+- "重启 docker 后历史保留"验收只关注 `status=ready` 的文档，不受影响
+
+### Chunker 策略
+
+约束：≤500 token / chunk，overlap 80 token，**页边界硬切**（不跨页，保证 page_no 准确）。
+
+```python
+MAX_TOKENS = 500
+OVERLAP_TOKENS = 80
+
+def chunk(text: str, page_no: int) -> list[Chunk]:
+    paragraphs = [p for p in split_paragraphs(text) if p.strip()]
+    if not paragraphs:
+        return []   # 空白页
+
+    chunks: list[Chunk] = []
+    buf = ""        # 当前正在累积的 chunk 文本
+
+    def flush():
+        nonlocal buf
+        if buf.strip():
+            chunks.append(Chunk(content=buf.strip(), page_no=page_no))
+        buf = ""
+
+    for para in paragraphs:
+        para_tokens = token_count(para)
+
+        # Case 1: 单段本身就超长 → 先 flush 当前 buf，再硬切此段
+        if para_tokens > MAX_TOKENS:
+            flush()
+            for piece in _split_oversized(para, MAX_TOKENS, OVERLAP_TOKENS):
+                chunks.append(Chunk(content=piece, page_no=page_no))
+            continue
+
+        # Case 2: 加入当前 buf 仍 <= 上限 → 累积
+        if token_count(buf) + para_tokens <= MAX_TOKENS:
+            buf += ("\n\n" if buf else "") + para
+            continue
+
+        # Case 3: 加入会超 → flush + 用 overlap 起新 buf
+        tail = take_tail_tokens(buf, OVERLAP_TOKENS)
+        flush()
+        buf = (tail + "\n\n" + para) if tail else para
+        # 极端情况：tail + para 仍 > MAX_TOKENS（para 接近 MAX，tail 80）
+        # 退化为硬切起新段
+        if token_count(buf) > MAX_TOKENS:
+            for piece in _split_oversized(buf, MAX_TOKENS, OVERLAP_TOKENS):
+                chunks.append(Chunk(content=piece, page_no=page_no))
+            buf = ""
+
+    flush()
+    return chunks
+
+
+def _split_oversized(text: str, max_tokens: int, overlap: int) -> Iterator[str]:
+    """超长段落 → 优先按句号切，再按 max_tokens 滑窗硬切，保证每片 ≤ max_tokens。"""
+    sentences = split_sentences(text)   # "。" "！" "？" + "\n"
+    buf = ""
+    for s in sentences:
+        if token_count(s) > max_tokens:
+            # 单句也超长（少见，如表格行）→ 滑窗硬切
+            if buf.strip():
+                yield buf.strip()
+                buf = ""
+            for i in range(0, token_count(s), max_tokens - overlap):
+                yield take_tokens(s, i, i + max_tokens)
+            continue
+        if token_count(buf) + token_count(s) <= max_tokens:
+            buf += s
+        else:
+            if buf.strip():
+                yield buf.strip()
+            buf = take_tail_tokens(buf, overlap) + s
+    if buf.strip():
+        yield buf.strip()
+```
+
+**覆盖的边界（test_chunker.py 必测）**：
+1. 空白页 → 返回 `[]`
+2. 普通短段落 → 1 个 chunk
+3. 多段加起来恰好 = 500 → 1 chunk
+4. 多段加起来 > 500 → 多 chunk + overlap 校验
+5. 单段 > 500（连续表格行/长公式） → `_split_oversized` 切分，每片 ≤ 500
+6. tail+para 仍 > 500（罕见极端）→ 退化路径
+7. 单句 > 500 → 滑窗硬切，无信息丢失
 
 ---
 
@@ -224,14 +335,20 @@ TOOL_SCHEMA = {
 ```
 
 **实现要点**：
-- 检索范围：`WHERE document_id IN (SELECT id FROM documents WHERE session_id=:sid AND status='ready')`
-- 向量化 query → BGE → cosine 检索 top-8 chunks
+- 检索范围：`WHERE document_id IN (SELECT id FROM documents WHERE session_id=:session_id AND status='ready')`
+- 向量化 query → BGE → cosine 相似度（注：pgvector `<=>` 返回 *distance* = 1 - similarity，越小越相关）
+- 取 top-K（默认 16）→ 转成 similarity → **过滤 similarity < `MIN_SIMILARITY`** （配置项，默认 0.35）
+  - BGE-large-zh-v1.5 经验值：>0.5 强相关，0.3-0.5 边缘相关，<0.3 基本不相关
+  - 不相关 query（如"今天天气"）实测全部低于 0.3，会被过滤为空结果
+  - 阈值放在 `config.yaml::retrieval.min_similarity`，可调
+- 过滤后保留前 `top_n`（默认 8）
 - 同文档同页连续 chunk 合并去重
 - 返回结构：
 
 ```json
 {
   "ok": true,
+  "found": true,
   "chunks": [
     {
       "doc_id": "uuid",
@@ -244,11 +361,21 @@ TOOL_SCHEMA = {
 }
 ```
 
-**空结果**：`{"ok": true, "chunks": []}` —— LLM 看到后必须说"未找到"。
+**空/低分结果**：
+```json
+{ "ok": true, "found": false, "chunks": [] }
+```
+LLM 看到 `found=false` 必须按"标准回应文案"回应（"在已上传文档中未找到相关信息"）。
+
+**Note for issue 6 collaboration**：tool 这里返回 chunks，但 SSE `citations` 事件不在此时发；详见第 7 节。
 
 ---
 
 ## 6. Prompt 设计
+
+两套 prompt 模板按"是否已上传文档"切换。所有 no-answer 文案严格使用第 1 节定义的两个标准句。
+
+### 6.1 模板 A：已上传文档（≥1 份 status=ready）
 
 ```
 你是一个文档问答助手。
@@ -257,15 +384,29 @@ TOOL_SCHEMA = {
 - 腾讯2025年度报告.pdf（共 89 页）
 
 【行为规则】
-1. 任何关于文档内容的问题，必须先调用 search_documents 工具检索
-2. 只能基于检索到的内容回答；如果检索结果为空或不相关，必须明确说"在已上传文档中未找到相关信息"
-3. 禁止使用你的常识或训练知识补充答案
+1. 任何用户问题都必须先调用 search_documents 工具检索
+2. 工具返回 found=false 或 chunks 为空时，必须**完整、原样**回答：
+   "在已上传文档中未找到相关信息。"
+   不要补充猜测、不要解释为什么没找到、不要给替代答案
+3. 工具返回 found=true 时，只能基于这些 chunks 的内容作答；
+   不得使用你的常识或训练知识补充
 4. 不要在回答正文中标注 [1] [2] 这类引用，前端会自动渲染来源卡片
-5. 用简洁、专业的中文回答；如果是数字，保留报告中的精度
-6. 如果用户问没上传文档的问题（如"今天天气"），礼貌说明"我只能回答你上传文档相关的问题"
+5. 用简洁、专业的中文回答；数字保留报告中的精度
 ```
 
-**没上传文档时**：system prompt 注明"当前会话尚未上传文档"，LLM 不调 tool，直接引导用户上传。
+### 6.2 模板 B：未上传文档（0 份 status=ready）
+
+```
+你是一个文档问答助手。当前会话尚未上传任何文档。
+
+【行为规则】
+1. 不要调用任何工具
+2. 不论用户问什么，都**完整、原样**回答：
+   "请先上传 PDF 文档以开始提问。"
+   不要解释、不要寒暄
+```
+
+**实现**：`_prepare_round` 根据 `count(documents WHERE status='ready')` 选模板。模板 B 走非 tool 路径，节省 tool round-trip。
 
 ---
 
@@ -283,10 +424,29 @@ TOOL_SCHEMA = {
 ### 新增事件
 | event | data | 用途 |
 |---|---|---|
-| `citations` | `{"tool_call_id": ..., "chunks": [{filename, page_no, snippet}]}` | search_documents 返回的来源，前端用于渲染 CitationCard |
+| `citations` | `{"chunks": [{filename, page_no, snippet}]}` | 绑定 assistant final message 的来源；空数组表示无来源 |
+
+**citations 事件的发射时机（关键）**：
+
+不能在 `tool_call_finished` 后立刻发，因为 LLM 可能拿到 chunks 后仍判断不相关、回 no-answer。否则会出现"答案说未找到，UI 却显示来源卡片"的不一致。
+
+正确流程：
+```
+1. LLM 流式输出 → 累积 final_text + 累积本轮所有 search_documents 返回的 chunks
+2. LLM 完成（finish_reason=stop）后，后端做最终判断：
+   if "未找到相关信息" in final_text or "请先上传" in final_text:
+       citations = []
+   else:
+       citations = collected_chunks   # 含所有 ready 文档命中
+3. yield StreamEvent.citations(chunks=citations)
+4. yield StreamEvent.done()
+5. 持久化 assistant message 时一并写入 message.citations
+```
+
+**幂等保证**：前端只在收到 `citations` 事件后才渲染 CitationCard；no-answer 场景永远不显示。
 
 ### 上传进度专用流
-`GET /sessions/{sid}/documents/{did}/progress`：
+`GET /sessions/{session_id}/documents/{document_id}/progress`：
 | event | data |
 |---|---|
 | `progress` | `{"page": 45, "total": 89, "phase": "ingesting"}` |
@@ -384,13 +544,14 @@ TOOL_SCHEMA = {
 ### 后端
 | 文件 | 覆盖 |
 |---|---|
-| `tests/unit/test_pdf_parser.py` | 中文 PDF fixture：页文本提取、空白页跳过、不乱码 |
-| `tests/unit/test_chunker.py` | 段落聚合、超长段落硬切、页边界、overlap 计算 |
-| `tests/unit/test_api_documents.py` | 上传 happy / 大文件拒绝 / 类型错误 / 状态轮询 / 删除 |
-| `tests/unit/test_search_documents.py` | 检索范围隔离（不同 session）、空结果、top-k 排序 |
-| `tests/unit/test_conversation_engine.py` | 整合：tool dispatch + citations 字段写入 |
-| `tests/unit/test_sse.py` | citations 事件编码 / 解码 |
-| `tests/e2e/test_doc_qa.py` | 用腾讯年报跑：事实/摘要/对比/边界 4 类问题，断言含正确页码 |
+| `tests/unit/test_pdf_parser.py` | 中文 PDF fixture：页文本提取、空白页跳过、不乱码、加密/扫描版报错 |
+| `tests/unit/test_chunker.py` | 7 个边界（见第 4 节末）：空白页 / 短段 / 恰好 500 / 多段超 / 单段超 / tail+para 退化 / 单句超 |
+| `tests/unit/test_api_documents.py` | 上传 happy / 大文件拒绝 / 非 PDF 拒绝 / 加密 PDF 拒绝（400）/ 状态轮询 / 删除 |
+| `tests/unit/test_search_documents.py` | 检索范围隔离 / 阈值过滤（构造低相关 query）/ found=true/false 分支 / top-k 排序 |
+| `tests/unit/test_conversation_engine.py` | 整合：tool dispatch + citations 绑定 + no-answer 时 citations=[] |
+| `tests/unit/test_startup_recovery.py` | 模拟 stale processing → startup 后被标 failed |
+| `tests/unit/test_sse.py` | citations / progress 事件编码解码 |
+| `tests/e2e/test_doc_qa.py` | 用腾讯年报跑 4 类问题：事实/摘要/对比/边界；边界断言子串 `未找到相关信息` 且 citations=[] |
 
 ### 前端
 | 文件 | 覆盖 |
@@ -429,7 +590,7 @@ src/
   main.py                     (依赖注入装配)
   config.py                   (config.yaml + .env)
   api/
-    chat.py                   (POST /chat, /chat/stream, GET /sessions, /sessions/{id}/messages)
+    chat.py                   (POST /chat, /chat/stream, GET /sessions, /sessions/{session_id}/messages)
     sse.py                    (StreamEvent, encode_sse, SSEStreamingResponse)
   core/
     conversation_engine.py    (handle/handle_stream，去掉 contacts/profile/reminders 注入)
@@ -553,16 +714,51 @@ cd frontend && pnpm test            # 前端测试
 
 ---
 
-## 13. 工作量与时间分配
+## 13. 工作量与降级阶梯
+
+### 完整版（理想 24h，按 task 切片）
 
 | 阶段 | 时间 | 产出 |
 |---|---|---|
-| Day 1 上午 | 4h | Scaffold copy + 清理 + alembic 重写 + PDF parser + chunker + 单测 |
-| Day 1 下午 | 4h | 上传 API + search_documents tool + prompt 改造 + 进度 SSE + 后端 E2E |
-| Day 2 上午 | 4h | 前端：empty state + top bar + 三态 row + 上传进度订阅 |
-| Day 2 下午 | 4h | citation 渲染 + 历史保留验证 + README + 截图 + push GitHub |
+| Day 1 上午 (4h) | T1 | Scaffold copy + 清理 + alembic 重写 + PDF parser + chunker + 单测 |
+| Day 1 下午 (4h) | T2 | 上传 API + 启动恢复 + search_documents tool（含阈值） + prompt 双模板 |
+| Day 1 晚 (2h) | T3 | citations 绑定逻辑 + 后端 E2E（4 类问题） |
+| Day 2 上午 (4h) | T4 | 前端：empty state + top bar + 三态 row + 上传进度 SSE 订阅 |
+| Day 2 下午 (4h) | T5 | citation 卡片渲染 + 输入框联动 + 历史保留验证 |
+| Day 2 晚 (2h) | T6 | README + 截图 + push GitHub |
+| Buffer | 4h | 调试、解析失败 PDF 处理、prompt 微调、阈值调参 |
 
-**总计 16h** 净开发时间。
+### MVP 降级阶梯（按"如果时间不够先砍什么"排序）
+
+> 列表越靠前，越早被砍。**P0 是必须保留的最小可演示版**。
+
+| 优先级 | 项 | 原始范围 | 降级版 | 节省 |
+|---|---|---|---|---|
+| P3（先砍） | 多 PDF 同会话 | 一个会话支持多个 PDF | **单 PDF / 会话**（上传第二个时替换第一个） | -2h |
+| P3 | 详细进度文案 | "正在向量化第 45/89 页…" | 仅徽章 + 转圈 | -1.5h |
+| P3 | 失败重试链接 | 红 row + 重试按钮 | 红 row + "请删除后重新上传" | -0.5h |
+| P3 | 前端组件单测 | citation-card / upload-progress 测试 | 跳过 | -1.5h |
+| P2 | 启动恢复 hook | startup 扫 stale processing | 跳过（接受 dev 重启可能卡死） | -0.5h |
+| P2 | ingestion 5min 超时 | asyncio.wait_for 包装 | 跳过 | -0.5h |
+| P2 | Citation snippet 展开 | 点击卡片展开完整 snippet | 始终显示 2 行截断 | -1h |
+| P2 | 拖拽态高亮 | 紫色边框 + 文案切换 | 仅虚线框 | -0.5h |
+| P1 | 进度 SSE | 服务端推送进度 | 前端 polling 每 1s | -1h（其实差不多，但更稳） |
+| P0（必保） | 上传 + ingestion | — | — | — |
+| P0 | search + 阈值 | — | — | — |
+| P0 | citations 绑定 + 渲染（基本卡片） | — | — | — |
+| P0 | no-answer 行为 + 边界 E2E | — | — | — |
+| P0 | docker compose 一键启动 | — | — | — |
+| P0 | README + 4 张关键截图（空状态/上传中/有答案+citation/边界） | — | — | — |
+
+**触发降级的检查点**：
+- Day 1 结束时若 T1+T2+T3 未完成 → 砍掉 P3 全部
+- Day 2 中午若 T4 未完成一半 → 砍掉 P2 中可砍项
+- Day 2 晚 8 点若 T5 未完成 → 砍掉 P2 全部，集中保 README + 截图
+
+**总时间评估**：
+- 完整版：24h（含 4h buffer）
+- 砍 P3：18h
+- 砍 P3+P2：14h（最小可交付）
 
 ---
 
@@ -570,11 +766,14 @@ cd frontend && pnpm test            # 前端测试
 
 | 风险 | 概率 | 影响 | 缓解 |
 |---|---|---|---|
-| pdfplumber 对扫描版/复杂排版年报解析质量差 | 中 | 高 | E2E 用挑战附带的腾讯年报，预先验证；README 标注扫描版不支持 |
+| pdfplumber 对扫描版/复杂排版年报解析质量差 | 中 | 高 | 上传端点同步打开 PDF 试解析，失败立刻 400；E2E 用挑战附带腾讯年报预先验证；README 标注扫描版不支持 |
 | BGE 模型首次下载慢（~1GB） | 高 | 中 | docker-compose 启动文档明确写"首次约 5-10 分钟" |
-| 数值/比较类问题召回不全 | 中 | 中 | top-8 + prompt 强约束 LLM 在召回不全时如实说 |
-| Moonshot API 限流 | 低 | 中 | 现有 tenacity 重试已覆盖 |
-| 前端 SSE 流式与上传 SSE 流并发冲突 | 低 | 低 | 不同 endpoint，浏览器并行 |
+| 数值/比较类问题召回不全 | 中 | 中 | top-8 + prompt 强约束 LLM 在召回不全时按标准句回答 |
+| 相关性阈值 0.35 在不同 PDF 上不准 | 中 | 中 | 阈值放 config，dev 时用腾讯年报跑 5–10 个 query 校准；README 写明可调 |
+| 进程重启导致 processing 卡死 | 高 | 中 | startup hook 扫 stale processing → failed；单条 ingestion 5min 超时 |
+| Moonshot API 限流 | 低 | 中 | 已有 tenacity 重试 |
+| 前端聊天 SSE 与上传进度 SSE 并发冲突 | 低 | 低 | 不同 endpoint，浏览器并行；EventSource 各自管理 |
+| 双 PDF 同会话时 citations 来源混淆 | 低 | 低 | citation 卡片始终显示 filename + page，UI 上可区分 |
 
 ---
 
