@@ -38,7 +38,11 @@ export function DocumentSidebar({ sessionId, docs, onChange }: Props) {
 
   return (
     <aside
-      className="flex h-full w-[260px] flex-col border-r border-gray-200 bg-gray-50"
+      className="flex h-full w-[260px] flex-col border-r"
+      style={{
+        backgroundColor: "var(--app-bg-docs)",
+        borderColor: "var(--app-border-divider)",
+      }}
       onDragOver={(e) => {
         e.preventDefault();
         setDragging(true);
@@ -51,14 +55,20 @@ export function DocumentSidebar({ sessionId, docs, onChange }: Props) {
         if (f) handleUpload(f);
       }}
     >
-      <div className="px-3 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-        文档
+      <div
+        className="px-3 pt-3 pb-1.5 text-[10px] font-mono font-semibold uppercase tracking-wider"
+        style={{ color: "var(--app-text-tertiary)" }}
+      >
+        文档 · DOCUMENTS
       </div>
 
       <ScrollArea className="flex-1">
         <ul className="flex flex-col gap-1.5 px-3 pb-3">
           {docs.length === 0 ? (
-            <li className="px-1 py-1.5 text-[11px] text-gray-400">
+            <li
+              className="px-1 py-1.5 text-[11px]"
+              style={{ color: "var(--app-text-faint)" }}
+            >
               暂无文档
             </li>
           ) : (
@@ -75,20 +85,29 @@ export function DocumentSidebar({ sessionId, docs, onChange }: Props) {
         </ul>
       </ScrollArea>
 
-      <div className="border-t border-gray-200 p-3">
+      <div
+        className="border-t p-3"
+        style={{ borderColor: "var(--app-border-subtle)" }}
+      >
         <button
           onClick={() => inputRef.current?.click()}
-          className={`block w-full rounded-md border-2 border-dashed px-3 py-3 text-center transition ${
-            dragging
-              ? "border-indigo-400 bg-indigo-50 text-indigo-700"
-              : "border-indigo-200 bg-gradient-to-b from-[#fafbff] to-[#f5f7ff] text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50"
-          }`}
+          className="block w-full rounded-md border-2 border-dashed px-3 py-3 text-center transition"
+          style={{
+            backgroundColor: dragging
+              ? "var(--app-accent-bg)"
+              : "var(--app-accent-bg-dim)",
+            borderColor: "var(--app-accent-border)",
+            color: "var(--app-accent-text-light)",
+          }}
         >
           <div className="text-[20px] leading-none">📥</div>
           <div className="mt-1 text-[12px] font-semibold">
             {dragging ? "松开上传" : "拖入或点击上传 PDF"}
           </div>
-          <div className="mt-0.5 text-[10px] text-indigo-500">
+          <div
+            className="mt-0.5 text-[10px] font-mono"
+            style={{ color: "var(--app-text-tertiary)" }}
+          >
             ≤ 20MB · 可多份
           </div>
         </button>
@@ -103,11 +122,13 @@ export function DocumentSidebar({ sessionId, docs, onChange }: Props) {
           }}
         />
         {error && (
-          <div className="mt-2 text-[11px] text-red-600">{error}</div>
+          <div
+            className="mt-2 text-[11px]"
+            style={{ color: "var(--app-status-err-fg)" }}
+          >
+            {error}
+          </div>
         )}
-        <div className="mt-2 text-center text-[10px] text-gray-400">
-          点击文档可在右侧聊天中提问
-        </div>
       </div>
     </aside>
   );
