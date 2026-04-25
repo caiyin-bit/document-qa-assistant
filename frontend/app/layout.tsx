@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "保险经纪助手",
-  description: "MVP demo",
+  title: "文档问答助手",
+  description: "PDF document QA assistant — Chinese, with page-level citations",
 };
 
 export default function RootLayout({
