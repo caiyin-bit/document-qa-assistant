@@ -1,4 +1,5 @@
 import type { Message } from "@/lib/types";
+import { CitationCard } from "./citation-card";
 
 export function MessageBubble({ message }: { message: Message }) {
   const isUser = message.role === "user";
@@ -17,6 +18,9 @@ export function MessageBubble({ message }: { message: Message }) {
           <div className="whitespace-pre-wrap break-words">
             {message.content}
           </div>
+        )}
+        {message.role === "assistant" && message.citations && (
+          <CitationCard citations={message.citations} />
         )}
       </div>
     </div>
