@@ -13,10 +13,10 @@ export const metadata: Metadata = {
 // has the correct data-theme on <html>. Without this, the page would briefly
 // render in :root light tokens before useTheme applies the stored preference.
 //
-// Resolution order matches spec §6 acceptance criteria + useTheme hook:
+// Resolution order matches useTheme hook:
 //   1. valid localStorage value
 //   2. prefers-color-scheme query (when matchMedia is supported)
-//   3. brand default 'dark' (when matchMedia is missing — older browsers)
+//   3. brand default 'light' (when matchMedia is missing — older browsers)
 const ANTI_FOUC = `
 try {
   var t = localStorage.getItem('docqa.theme');
@@ -24,7 +24,7 @@ try {
     if (window.matchMedia) {
       t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     } else {
-      t = 'dark';
+      t = 'light';
     }
   }
   document.documentElement.dataset.theme = t;
@@ -37,7 +37,7 @@ export default function RootLayout({
   return (
     <html
       lang="zh-CN"
-      data-theme="dark"
+      data-theme="light"
       className={`${GeistSans.variable} ${GeistMono.variable}`}
     >
       <head>
