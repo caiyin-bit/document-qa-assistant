@@ -35,10 +35,19 @@ export function MessageBubble({ message }: { message: Message }) {
             ))}
           </div>
         )}
-        {message.content && (
+        {message.content ? (
           <div className="whitespace-pre-wrap break-words">
             {message.content}
           </div>
+        ) : (
+          message.role === "assistant" && (
+            <div
+              className="italic animate-pulse"
+              style={{ color: "var(--app-text-faint)" }}
+            >
+              正在思考中.....
+            </div>
+          )
         )}
         {message.role === "assistant" && message.citations && (
           <CitationCard citations={message.citations} />
