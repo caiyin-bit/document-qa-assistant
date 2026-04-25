@@ -2,30 +2,24 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Send } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { listMessages } from "@/lib/api";
 import { useChatStream } from "@/lib/use-chat-stream";
-import { useDocuments } from "@/lib/use-documents";
-import type { Message } from "@/lib/types";
+import type { Document, Message } from "@/lib/types";
 import { MessageBubble } from "./message-bubble";
-import { DocumentUploadHero } from "./document-upload-hero";
-import { DocumentTopBar } from "./document-top-bar";
 
 type Props = {
   sessionId: string;
+  docs: Document[];
   onFirstMessageSent?: () => void;
 };
 
-export function ChatPane({ sessionId, onFirstMessageSent }: Props) {
-  const { docs, refresh: refreshDocs } = useDocuments(sessionId);
+export function ChatPane({ sessionId, docs, onFirstMessageSent }: Props) {
   const { messages, streaming, error, send, setMessages } =
     useChatStream(sessionId);
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Load history when sessionId changes — preserve optimistic messages
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -44,12 +38,11 @@ export function ChatPane({ sessionId, onFirstMessageSent }: Props) {
                   status: "ok" as const,
                 }))
               : [],
-          citations: (m as any).citations ?? undefined,
+          citations: (m as { citations?: Message["citations"] }).citations,
         }));
-        // Race guard: keep optimistic messages if already chatting
         setMessages((prev) => (prev.length === 0 ? converted : prev));
       } catch {
-        // Silent: empty pane — user can still send new messages
+        /* empty pane fallback */
       }
     })();
     return () => {
@@ -57,14 +50,16 @@ export function ChatPane({ sessionId, onFirstMessageSent }: Props) {
     };
   }, [sessionId, setMessages]);
 
-  // Auto-scroll to bottom on new content
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages]);
 
-  const hasReady = docs.some((d) => d.status === "ready");
   const hasAny = docs.length > 0;
-  const inputDisabled = streaming || !hasReady;
+  const hasReady = docs.some((d) => d.status === "ready");
+  const hasProcessing = docs.some((d) => d.status === "processing");
+  // Allow chat without docs (plain LLM). Block only while streaming or while
+  // docs exist but none are ready (we want those questions to hit RAG).
+  const inputDisabled = streaming || (hasAny && !hasReady);
 
   async function handleSend() {
     const wasEmpty = messages.length === 0;
@@ -75,43 +70,54 @@ export function ChatPane({ sessionId, onFirstMessageSent }: Props) {
     if (wasEmpty && onFirstMessageSent) onFirstMessageSent();
   }
 
-  if (!hasAny) {
-    return (
-      <DocumentUploadHero sessionId={sessionId} onUploaded={refreshDocs} />
-    );
-  }
+  const placeholder = streaming
+    ? "回答生成中…"
+    : hasProcessing && !hasReady
+      ? "请等待文档解析完成…"
+      : hasReady
+        ? "向文档提问…（Enter 发送 · Shift+Enter 换行）"
+        : "输入问题与助手对话…（Enter 发送）";
 
   return (
-    <div className="flex h-full flex-1 flex-col">
-      <DocumentTopBar sessionId={sessionId} docs={docs} onChange={refreshDocs} />
-      <ScrollArea className="flex-1 px-4 py-4">
-        {messages.map((m) => (
-          <MessageBubble key={m.id} message={m} />
-        ))}
-        {error && (
-          <div className="my-2 rounded-md border border-orange-300 bg-orange-50 p-3 text-sm text-orange-800">
-            出错了:{error}
-            <Button
-              variant="link"
-              size="sm"
-              className="ml-2 h-auto p-0 text-orange-900"
-              onClick={() => {
-                const last = messages.findLast((m) => m.role === "user");
-                if (last) {
-                  setMessages((prev) => prev.slice(0, -2));
-                  send(last.content);
-                }
-              }}
-            >
-              重试
-            </Button>
-          </div>
-        )}
-        <div ref={bottomRef} />
+    <div className="flex h-full flex-1 flex-col bg-white">
+      <ScrollArea className="flex-1">
+        <div className="mx-auto w-full max-w-3xl px-5 py-5">
+          {messages.length === 0 && (
+            <div className="mt-8 text-center text-[13px] text-gray-400">
+              {hasReady
+                ? "文档已就绪，可以开始提问了。"
+                : hasProcessing
+                  ? "文档解析中，稍候即可提问。"
+                  : "未上传文档时也可以直接对话；上传后回答会附带原文出处。"}
+            </div>
+          )}
+          {messages.map((m) => (
+            <MessageBubble key={m.id} message={m} />
+          ))}
+          {error && (
+            <div className="my-2 rounded-md border border-orange-300 bg-orange-50 px-3 py-2 text-sm text-orange-800">
+              出错了：{error}
+              <button
+                className="ml-2 text-orange-900 underline underline-offset-2 hover:no-underline"
+                onClick={() => {
+                  const last = messages.findLast((m) => m.role === "user");
+                  if (last) {
+                    setMessages((prev) => prev.slice(0, -2));
+                    send(last.content);
+                  }
+                }}
+              >
+                重试
+              </button>
+            </div>
+          )}
+          <div ref={bottomRef} />
+        </div>
       </ScrollArea>
-      <div className="border-t border-gray-200 bg-white p-3">
-        <div className="flex gap-2">
-          <Textarea
+
+      <div className="border-t border-gray-200 bg-white px-4 py-3">
+        <div className="mx-auto flex w-full max-w-3xl items-end gap-2">
+          <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
@@ -120,17 +126,18 @@ export function ChatPane({ sessionId, onFirstMessageSent }: Props) {
                 handleSend();
               }
             }}
-            placeholder={hasReady ? "发消息(Enter 发送,Shift+Enter 换行)" : "请等待文档解析完成…"}
+            placeholder={placeholder}
             disabled={inputDisabled}
-            className="min-h-[60px] resize-none"
+            rows={1}
+            className="min-h-[40px] flex-1 resize-none rounded-md border border-gray-200 bg-white px-3 py-2 text-[13px] outline-none placeholder:text-gray-400 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200 disabled:bg-gray-50 disabled:text-gray-400"
           />
-          <Button
+          <button
             onClick={handleSend}
             disabled={inputDisabled || !input.trim()}
-            className="self-end gap-1"
+            className="inline-flex items-center gap-1 rounded-md bg-indigo-600 px-3.5 py-2 text-[13px] font-medium text-white transition hover:bg-indigo-700 disabled:bg-gray-300"
           >
-            <Send className="h-4 w-4" /> 发送
-          </Button>
+            <Send className="h-3.5 w-3.5" /> 发送
+          </button>
         </div>
       </div>
     </div>
