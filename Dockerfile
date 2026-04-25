@@ -1,7 +1,13 @@
 FROM python:3.12-slim
 
-# Install uv
-RUN pip install --no-cache-dir uv
+# Use Chinese PyPI mirror to avoid timeouts on cn networks.
+# UV_DEFAULT_INDEX overrides the default PyPI index for uv;
+# pyproject.toml's [tool.uv.sources] torch=pytorch-cpu still wins
+# for torch (explicit=true), so torch keeps using its own CPU wheel index.
+ENV UV_DEFAULT_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
+
+# Install uv (use Tsinghua pip mirror so uv itself installs fast)
+RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple uv
 
 WORKDIR /app
 
@@ -15,8 +21,13 @@ ENV PYTHONPATH=/app
 # install our own project (src/ isn't copied yet). --no-install-project
 # is essential — without it, uv sync would fail because pyproject.toml
 # declares the local project but its source dir is missing.
+#
+# NOTE: --frozen omitted on purpose. uv.lock pins exact wheel URLs at
+# files.pythonhosted.org, which times out from cn networks. Without
+# --frozen, uv re-resolves through UV_DEFAULT_INDEX (Tsinghua) above.
+# Trade-off: reproducibility weakened, but acceptable for dev images.
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --no-install-project
+RUN uv sync --no-dev --no-install-project
 
 # Now copy source (will be overridden by bind mount in dev).
 COPY src ./src

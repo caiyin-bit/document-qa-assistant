@@ -2,14 +2,31 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+log = logging.getLogger(__name__)
+UPLOADS_DIR = Path("data/uploads")
+
+_TITLE_MAX_CHARS = 24
+
+
+def _derive_title(first_user_msg: str | None) -> str:
+    """Sidebar title: first user message truncated, or '新对话' before any message."""
+    if not first_user_msg:
+        return "新对话"
+    text = first_user_msg.strip().replace("\n", " ")
+    if len(text) <= _TITLE_MAX_CHARS:
+        return text
+    return text[:_TITLE_MAX_CHARS] + "…"
 
 from src.api.sse import SSEStreamingResponse, to_sse_bytes
 from src.core.conversation_engine import ConversationEngine
@@ -106,15 +123,35 @@ def make_router(deps: ChatDependencies) -> APIRouter:
                 detail="limit must be between 1 and 200",
             )
         memory = _build_memory(db)
-        rows = await memory.list_recent_sessions(
+        rows = await memory.list_sessions_with_titles(
             user_id=deps.default_user_id, limit=limit
         )
         return [
             SessionListItem(
-                session_id=r.id, created_at=r.created_at, title=r.title
+                session_id=sess.id,
+                created_at=sess.created_at,
+                title=_derive_title(first_msg),
             )
-            for r in rows
+            for sess, first_msg in rows
         ]
+
+    @router.delete("/sessions/{session_id}", status_code=204)
+    async def delete_session(
+        session_id: UUID, db: AsyncSession = Depends(get_db)
+    ):
+        memory = _build_memory(db)
+        sess = await memory.get_session(session_id)
+        if sess is None or sess.user_id != deps.default_user_id:
+            raise HTTPException(
+                status_code=404,
+                detail="session not found or not owned by current user",
+            )
+        doc_ids = await memory.delete_session(session_id)
+        for did in doc_ids:
+            try:
+                (UPLOADS_DIR / f"{did}.pdf").unlink(missing_ok=True)
+            except Exception:
+                log.warning("failed to unlink %s.pdf during session delete", did)
 
     @router.get(
         "/sessions/{session_id}/messages",
@@ -124,14 +161,13 @@ def make_router(deps: ChatDependencies) -> APIRouter:
         session_id: UUID, db: AsyncSession = Depends(get_db)
     ) -> list[HistoricalMessage]:
         memory = _build_memory(db)
-        rows = await memory.list_all_messages(
-            session_id=session_id, user_id=deps.default_user_id
-        )
-        if rows is None:
+        sess = await memory.get_session(session_id)
+        if sess is None or sess.user_id != deps.default_user_id:
             raise HTTPException(
                 status_code=404,
                 detail="session not found or not owned by current user",
             )
+        rows = await memory.list_messages(session_id)
         out: list[HistoricalMessage] = []
         for m in rows:
             if m.role == "tool":

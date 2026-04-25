@@ -10,40 +10,87 @@ type Props = {
 };
 
 export function DocumentRow({ sessionId, doc, onDelete }: Props) {
-  const progress = useDocumentProgress(sessionId, doc.document_id,
-                                        doc.status === 'processing');
+  const progress = useDocumentProgress(
+    sessionId,
+    doc.document_id,
+    doc.status === "processing",
+  );
 
-  if (doc.status === 'processing') {
-    const page = (progress as any)?.page ?? doc.progress_page ?? 0;
+  if (doc.status === "processing") {
+    const page = (progress as { page?: number } | null)?.page ??
+                 doc.progress_page ?? 0;
     const total = doc.page_count;
     const pct = total ? Math.round((page / total) * 100) : 0;
     return (
-      <div className="rounded border border-amber-200 bg-amber-50 p-2 min-w-[260px]">
+      <div
+        className="min-w-[200px] rounded-md border px-2 py-1.5"
+        style={{
+          backgroundColor: "var(--app-status-warn-bg)",
+          borderColor: "var(--app-status-warn-card-border)",
+        }}
+      >
         <div className="flex items-center gap-2">
-          <span className="rounded bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5">PDF</span>
-          <span className="text-xs flex-1 truncate">{doc.filename}</span>
-          <span className="rounded-full bg-amber-200 text-amber-900 text-[10px] px-2 py-0.5">解析中</span>
+          <FileBadge />
+          <span
+            className="flex-1 truncate text-xs"
+            style={{ color: "var(--app-text-primary)" }}
+          >
+            {doc.filename}
+          </span>
+          <StatusPill kind="warn">解析中</StatusPill>
         </div>
-        <div className="h-1 bg-amber-100 rounded mt-1 overflow-hidden">
-          <div className="h-full bg-amber-500 transition-all" style={{ width: `${pct}%` }} />
+        <div
+          className="mt-1.5 h-[3px] overflow-hidden rounded-sm"
+          style={{ backgroundColor: "var(--app-status-warn-bg)" }}
+        >
+          <div
+            className="h-full transition-all"
+            style={{
+              width: `${pct}%`,
+              backgroundColor: "var(--app-status-warn-fg)",
+            }}
+          />
         </div>
-        <div className="text-[10px] text-amber-800 mt-1">
-          正在向量化第 {page} / {total} 页…
+        <div
+          className="mt-1 text-[10px] font-mono"
+          style={{ color: "var(--app-status-warn-fg)" }}
+        >
+          向量化 {page} / {total}
         </div>
       </div>
     );
   }
 
-  if (doc.status === 'ready') {
+  if (doc.status === "ready") {
     return (
-      <div className="rounded border border-green-200 bg-green-50 p-2 flex items-center gap-2 min-w-[200px]">
-        <span className="rounded bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5">PDF</span>
-        <span className="text-xs flex-1 truncate">{doc.filename}</span>
-        <span className="text-[10px] text-gray-500">{doc.page_count}页</span>
-        <span className="rounded-full bg-green-200 text-green-900 text-[10px] px-2 py-0.5">✓ 就绪</span>
-        <button onClick={() => onDelete(doc.document_id)}
-                className="text-gray-400 hover:text-gray-600">
-          <X className="w-3.5 h-3.5" />
+      <div
+        className="flex min-w-[200px] items-center gap-2 rounded-md border px-2 py-1.5"
+        style={{
+          backgroundColor: "var(--app-bg)",
+          borderColor: "var(--app-border-subtle)",
+        }}
+      >
+        <FileBadge />
+        <span
+          className="flex-1 truncate text-xs"
+          style={{ color: "var(--app-text-primary)" }}
+        >
+          {doc.filename}
+        </span>
+        <span
+          className="text-[10px] font-mono"
+          style={{ color: "var(--app-text-tertiary)" }}
+        >
+          {doc.page_count} 页
+        </span>
+        <StatusPill kind="ok">✓ 就绪</StatusPill>
+        <button
+          onClick={() => onDelete(doc.document_id)}
+          className="px-1 transition hover:opacity-70"
+          aria-label="删除文档"
+          style={{ color: "var(--app-text-faint)" }}
+        >
+          <X className="h-3.5 w-3.5" />
         </button>
       </div>
     );
@@ -51,19 +98,82 @@ export function DocumentRow({ sessionId, doc, onDelete }: Props) {
 
   // failed
   return (
-    <div className="rounded border border-red-200 bg-red-50 p-2 min-w-[260px]">
+    <div
+      className="min-w-[200px] rounded-md border px-2 py-1.5"
+      style={{
+        backgroundColor: "var(--app-bg)",
+        borderColor: "var(--app-status-err-card-border)",
+      }}
+    >
       <div className="flex items-center gap-2">
-        <span className="rounded bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5">PDF</span>
-        <span className="text-xs flex-1 truncate">{doc.filename}</span>
-        <span className="rounded-full bg-red-200 text-red-900 text-[10px] px-2 py-0.5">✗ 失败</span>
-        <button onClick={() => onDelete(doc.document_id)}
-                className="text-gray-400 hover:text-gray-600">
-          <X className="w-3.5 h-3.5" />
+        <FileBadge />
+        <span
+          className="flex-1 truncate text-xs"
+          style={{ color: "var(--app-text-primary)" }}
+        >
+          {doc.filename}
+        </span>
+        <StatusPill kind="err">✗ 失败</StatusPill>
+        <button
+          onClick={() => onDelete(doc.document_id)}
+          className="px-1 transition hover:opacity-70"
+          aria-label="删除文档"
+          style={{ color: "var(--app-text-faint)" }}
+        >
+          <X className="h-3.5 w-3.5" />
         </button>
       </div>
       {doc.error_message && (
-        <div className="text-[10px] text-red-700 mt-1">{doc.error_message}</div>
+        <div
+          className="mt-1 text-[10px] leading-snug font-mono"
+          style={{ color: "var(--app-status-err-fg)" }}
+        >
+          {doc.error_message}
+        </div>
       )}
     </div>
+  );
+}
+
+function FileBadge() {
+  return (
+    <span
+      className="inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-sm text-[8px] font-bold font-mono"
+      style={{
+        backgroundColor: "var(--app-pdf-badge-bg)",
+        color: "var(--app-pdf-badge-fg)",
+      }}
+    >
+      PDF
+    </span>
+  );
+}
+
+function StatusPill({
+  kind,
+  children,
+}: {
+  kind: "ok" | "warn" | "err";
+  children: React.ReactNode;
+}) {
+  const bg =
+    kind === "ok"
+      ? "var(--app-status-ok-bg)"
+      : kind === "warn"
+        ? "var(--app-status-warn-bg)"
+        : "var(--app-status-err-bg)";
+  const fg =
+    kind === "ok"
+      ? "var(--app-status-ok-fg)"
+      : kind === "warn"
+        ? "var(--app-status-warn-fg)"
+        : "var(--app-status-err-fg)";
+  return (
+    <span
+      className="rounded-full px-2 py-[1px] text-[10px] font-mono font-semibold"
+      style={{ backgroundColor: bg, color: fg }}
+    >
+      {children}
+    </span>
   );
 }

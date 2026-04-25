@@ -1,7 +1,12 @@
-"""Spec §6: prompt templates A / B-EMPTY / B-PROCESSING / B-FAILED."""
+"""Spec §6: prompt templates.
+A           = ready docs exist → strict RAG (must call search, must cite)
+B-EMPTY     = no docs at all   → plain LLM chat (no tool, no citation)
+B-PROCESSING= docs ingesting   → fixed canned response (transient state)
+B-FAILED    = all docs failed  → fixed canned response (user must clean up)
+"""
 
+# Only PROCESSING/FAILED are canned; B-EMPTY now routes to plain LLM chat.
 FIXED_RESPONSES = {
-    "B-EMPTY":      "请先上传 PDF 文档以开始提问。",
     "B-PROCESSING": "文档正在解析中，请稍候再提问。",
     "B-FAILED":     "已上传的文档解析失败，请删除后重新上传。",
     "NO_MATCH":     "在已上传文档中未找到相关信息。",
@@ -39,6 +44,15 @@ _A_TEMPLATE = """{persona}
 5. 用简洁、专业的中文回答；数字保留报告中的精度
 """
 
+_B_EMPTY_TEMPLATE = """你是一个友好的中文助手。用户尚未上传任何 PDF 文档。
+
+【行为规则】
+1. 请直接基于你的知识回答用户的问题，不要调用任何工具
+2. 不要假装从文档中检索；不要提及 search_documents 之类的工具
+3. 不要主动反复提醒用户"上传 PDF 后可以问 X"——那是 UI 引导的事
+4. 用简洁、专业的中文回答；不知道就直接说不知道
+"""
+
 
 def render_system_prompt(template: str, *, docs: list[dict], persona: str) -> str:
     if template == "A":
@@ -49,7 +63,10 @@ def render_system_prompt(template: str, *, docs: list[dict], persona: str) -> st
             persona=persona, doc_list=doc_lines,
             no_match=FIXED_RESPONSES["NO_MATCH"],
         )
-    # B-* templates: persona + the fixed sentence is the full assistant reply,
-    # but we still pass a system prompt so persona stays consistent if anything
-    # ever does call the LLM with template B.
+    if template == "B-EMPTY":
+        # Persona deliberately NOT included — the persona enforces strict
+        # PDF-only answering, which is the wrong behavior here.
+        return _B_EMPTY_TEMPLATE
+    # PROCESSING / FAILED: canned reply path; system prompt is unused but we
+    # still return persona for safety in case anything routes to LLM.
     return f"{persona}\n\n（系统提示：{FIXED_RESPONSES[template]}）"

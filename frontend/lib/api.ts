@@ -16,6 +16,11 @@ export async function createSession(): Promise<{ session_id: string }> {
   return r.json();
 }
 
+export async function deleteSession(sessionId: string): Promise<void> {
+  const r = await fetch(`${BASE}/sessions/${sessionId}`, { method: "DELETE" });
+  if (!r.ok) throw new Error(`DELETE /sessions/${sessionId}: ${r.status}`);
+}
+
 export async function listMessages(
   sessionId: string,
 ): Promise<HistoricalMessage[]> {

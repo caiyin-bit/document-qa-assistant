@@ -25,7 +25,9 @@ class ConversationEngine:
         counts = await self.mem.count_documents_by_status(session_id)
         template = select_template(counts)
 
-        if template != "A":
+        # PROCESSING / FAILED: canned reply (transient state — user must wait
+        # or clean up). B-EMPTY now falls through to plain LLM chat below.
+        if template in ("B-PROCESSING", "B-FAILED"):
             fixed = FIXED_RESPONSES[template]
             yield StreamEvent.text(delta=fixed)
             yield StreamEvent.citations(chunks=[])
@@ -33,14 +35,19 @@ class ConversationEngine:
             yield StreamEvent.done()
             return
 
-        # Template A
-        docs = await self.mem.list_documents(session_id)
-        ready_docs = [
-            {"filename": d.filename, "page_count": d.page_count}
-            for d in docs
-            if (d.status.value if hasattr(d.status, "value") else d.status) == "ready"
-        ]
-        system_prompt = render_system_prompt("A", docs=ready_docs, persona=self.persona)
+        # Template A or B-EMPTY: real LLM call.
+        if template == "A":
+            docs = await self.mem.list_documents(session_id)
+            ready_docs = [
+                {"filename": d.filename, "page_count": d.page_count}
+                for d in docs
+                if (d.status.value if hasattr(d.status, "value") else d.status) == "ready"
+            ]
+            system_prompt = render_system_prompt("A", docs=ready_docs, persona=self.persona)
+            tools_for_llm = self.tools.schemas()
+        else:  # B-EMPTY → plain chat, no tool, no citations
+            system_prompt = render_system_prompt("B-EMPTY", docs=[], persona=self.persona)
+            tools_for_llm = None
 
         history = []
         for m in await self.mem.list_messages(session_id):
@@ -66,7 +73,7 @@ class ConversationEngine:
             tool_call_acc = {}
             finish_reason = None
 
-            async for chunk in self.llm.chat_stream(messages, tools=self.tools.schemas()):
+            async for chunk in self.llm.chat_stream(messages, tools=tools_for_llm):
                 if chunk.text_delta:
                     text_buf += chunk.text_delta
                     yield StreamEvent.text(delta=chunk.text_delta)

@@ -21,7 +21,7 @@ describe('CitationCard', () => {
         { doc_id: 'a', filename: 'x.pdf', page_no: 2, snippet: 's', score: 0.7 },
       ]} />
     );
-    expect(getByText(/来源（2）/)).toBeTruthy();
+    expect(getByText(/来源.*\(2\)/)).toBeTruthy();
   });
 
   it('renders nothing when citations empty', () => {
