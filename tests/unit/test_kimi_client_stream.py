@@ -106,8 +106,8 @@ async def test_chat_stream_text_only(monkeypatch):
 async def test_chat_stream_tool_call_deltas(monkeypatch):
     """tool_call name + arguments arrive across chunks → yielded as ToolCallDelta list."""
     stream_iter = _FakeStreamIter([
-        _mk_chunk(tool_calls=[_mk_openai_tool_call_delta(0, id="c1", name="create_contact", arguments_fragment='{"na')]),
-        _mk_chunk(tool_calls=[_mk_openai_tool_call_delta(0, arguments_fragment='me":"')]),
+        _mk_chunk(tool_calls=[_mk_openai_tool_call_delta(0, id="c1", name="search_documents", arguments_fragment='{"qu')]),
+        _mk_chunk(tool_calls=[_mk_openai_tool_call_delta(0, arguments_fragment='ery":"')]),
         _mk_chunk(tool_calls=[_mk_openai_tool_call_delta(0, arguments_fragment='张三"}')]),
         _mk_chunk(finish_reason="tool_calls"),
     ])
@@ -128,10 +128,10 @@ async def test_chat_stream_tool_call_deltas(monkeypatch):
         if c.finish_reason:
             finish = c.finish_reason
 
-    # Reassemble: id "c1", name "create_contact", arguments '{"name":"张三"}'
+    # Reassemble: id "c1", name "search_documents", arguments '{"query":"张三"}'
     args = "".join(d.arguments_fragment for d in tool_deltas_all if d.arguments_fragment)
-    assert args == '{"name":"张三"}'
-    assert any(d.id == "c1" and d.name == "create_contact" for d in tool_deltas_all)
+    assert args == '{"query":"张三"}'
+    assert any(d.id == "c1" and d.name == "search_documents" for d in tool_deltas_all)
     assert finish == "tool_calls"
 
 

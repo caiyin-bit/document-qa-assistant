@@ -41,8 +41,8 @@ async def test_tool_call_response(fake_client):
                         SimpleNamespace(
                             id="call_1",
                             function=SimpleNamespace(
-                                name="create_contact",
-                                arguments='{"name":"张三","profile_text":"画像"}',
+                                name="search_documents",
+                                arguments='{"query":"张三 画像"}',
                             ),
                         )
                     ],
@@ -56,8 +56,8 @@ async def test_tool_call_response(fake_client):
     assert len(resp.tool_calls) == 1
     tc: ToolCall = resp.tool_calls[0]
     assert tc.id == "call_1"
-    assert tc.name == "create_contact"
-    assert tc.arguments == {"name": "张三", "profile_text": "画像"}
+    assert tc.name == "search_documents"
+    assert tc.arguments == {"query": "张三 画像"}
 
 
 async def test_retries_on_transient_error(monkeypatch):

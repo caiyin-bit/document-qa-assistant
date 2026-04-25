@@ -23,10 +23,6 @@ class ChatRequest(BaseModel):
     message: str
 
 
-class ChatResponse(BaseModel):
-    content: str
-
-
 class SessionCreatedResponse(BaseModel):
     session_id: UUID
 
@@ -146,18 +142,6 @@ def make_router(deps: ChatDependencies) -> APIRouter:
                 tool_calls=m.tool_calls,
             ))
         return out
-
-    @router.post("/chat", response_model=ChatResponse)
-    async def chat(
-        req: ChatRequest, db: AsyncSession = Depends(get_db)
-    ) -> ChatResponse:
-        engine = _build_engine(db)
-        reply = await engine.handle(
-            user_id=deps.default_user_id,
-            session_id=req.session_id,
-            user_message=req.message,
-        )
-        return ChatResponse(content=reply)
 
     @router.post("/chat/stream")
     async def chat_stream(

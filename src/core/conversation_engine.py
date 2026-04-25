@@ -139,13 +139,3 @@ class ConversationEngine:
         )
         yield StreamEvent.citations(chunks=unique_citations)
         yield StreamEvent.done()
-
-
-# Keep handle() for backward compat — not used in V1 streaming flow
-class _DeprecatedHandleMixin:
-    async def handle(self, *args, **kwargs) -> str:
-        return "(use handle_stream instead)"
-
-
-# Inject for tools that may call .handle
-ConversationEngine.handle = _DeprecatedHandleMixin.handle  # type: ignore

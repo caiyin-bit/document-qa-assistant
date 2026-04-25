@@ -36,13 +36,13 @@ describe("parseSSE", () => {
 
   it("parses tool_call_started + tool_call_finished(ok=true) round trip", async () => {
     const stream = streamFromChunks([
-      `event: tool_call_started\ndata: {"id":"tc1","name":"create_contact"}\n\n`,
+      `event: tool_call_started\ndata: {"id":"tc1","name":"search_documents"}\n\n`,
       `event: tool_call_finished\ndata: {"id":"tc1","ok":true}\n\n`,
       `event: done\ndata: {}\n\n`,
     ]);
     const out = await collect(stream);
     expect(out).toEqual([
-      { type: "tool_call_started", id: "tc1", name: "create_contact" },
+      { type: "tool_call_started", id: "tc1", name: "search_documents" },
       { type: "tool_call_finished", id: "tc1", ok: true },
       { type: "done" },
     ]);

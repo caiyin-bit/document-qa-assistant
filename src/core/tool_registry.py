@@ -11,12 +11,6 @@ class ToolRegistry:
             ),
         }
 
-    @classmethod
-    def default(cls, *args, **kwargs):
-        # Backward-compat shim for chat.py call sites until T13 rewires.
-        # Returns an empty registry; real wiring happens in T13.
-        return _EmptyRegistry()
-
     def schemas(self) -> list[dict]:
         return [TOOL_SCHEMA]
 
@@ -27,12 +21,3 @@ class ToolRegistry:
             return await self._tools[name].execute(session_id=session_id, **arguments)
         except Exception as e:
             return {"ok": False, "error": str(e)[:200]}
-
-
-class _EmptyRegistry:
-    """Backward-compat shim until T13 rewires chat.py to call ToolRegistry(...)
-    with proper deps. Returns empty schemas and a stub execute."""
-    def schemas(self):
-        return []
-    async def execute(self, *args, **kwargs):
-        return {"ok": False, "error": "tool_registry not configured (T13 pending)"}

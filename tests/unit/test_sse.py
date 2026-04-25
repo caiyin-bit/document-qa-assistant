@@ -14,7 +14,7 @@ def test_encode_sse_format_all_event_types():
     """
     frames = {
         "text": encode_sse(StreamEvent.text("你好")),
-        "tool_call_started": encode_sse(StreamEvent.tool_call_started("call_a", "create_contact")),
+        "tool_call_started": encode_sse(StreamEvent.tool_call_started("call_a", "search_documents")),
         "tool_call_finished": encode_sse(StreamEvent.tool_call_finished("call_a", True)),
         "done": encode_sse(StreamEvent.done()),
         "error": encode_sse(StreamEvent.error(message="boom", code="LlmCallFailed")),
@@ -30,7 +30,7 @@ def test_encode_sse_format_all_event_types():
         if typ == "text":
             assert payload == {"delta": "你好"}  # ensure_ascii=False
         if typ == "tool_call_started":
-            assert payload == {"id": "call_a", "name": "create_contact"}
+            assert payload == {"id": "call_a", "name": "search_documents"}
         if typ == "tool_call_finished":
             assert payload == {"id": "call_a", "ok": True}
         if typ == "done":

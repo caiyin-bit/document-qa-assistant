@@ -26,7 +26,7 @@ export type ToolStatus = "running" | "ok" | "error";
 
 export type ToolCall = {
   id: string;
-  name: string;          // raw, e.g. "create_contact"
+  name: string;          // raw, e.g. "search_documents"
   status: ToolStatus;
 };
 
