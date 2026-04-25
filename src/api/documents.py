@@ -111,4 +111,73 @@ def make_documents_router(*, embedder: BgeEmbedder) -> APIRouter:
             "page_count": doc.page_count,
         }
 
+    @router.get("/sessions/{session_id}/documents")
+    async def list_documents(session_id: UUID, db: AsyncSession = Depends(get_db)):
+        mem = MemoryService(db)
+        sess = await mem.get_session(session_id)
+        if sess is None or sess.user_id != DEMO_USER_ID:
+            raise HTTPException(404, "session not found")
+        rows = await mem.list_documents(session_id)
+        return [
+            {
+                "document_id": str(d.id),
+                "filename": d.filename,
+                "page_count": d.page_count,
+                "progress_page": d.progress_page,
+                "status": d.status.value if hasattr(d.status, "value") else d.status,
+                "error_message": d.error_message,
+                "uploaded_at": d.uploaded_at.isoformat() if d.uploaded_at else None,
+            } for d in rows
+        ]
+
+    @router.delete("/sessions/{session_id}/documents/{document_id}", status_code=204)
+    async def delete_document(
+        session_id: UUID, document_id: UUID, db: AsyncSession = Depends(get_db),
+    ):
+        mem = MemoryService(db)
+        sess = await mem.get_session(session_id)
+        if sess is None or sess.user_id != DEMO_USER_ID:
+            raise HTTPException(404, "session not found")
+        doc = await mem.get_document(document_id)
+        if doc is None or doc.session_id != session_id:
+            raise HTTPException(404, "document not found")
+        status = doc.status.value if hasattr(doc.status, "value") else doc.status
+        if status == "processing":
+            raise HTTPException(
+                409, "文档正在解析中，请等待完成或解析超时（≤5min）后再删除"
+            )
+
+        await mem.delete_document(document_id)
+        try:
+            (UPLOADS_DIR / f"{document_id}.pdf").unlink(missing_ok=True)
+        except Exception:
+            log.warning("failed to unlink %s.pdf", document_id)
+
+    @router.get("/sessions/{session_id}/documents/{document_id}/progress")
+    async def progress_stream(
+        session_id: UUID, document_id: UUID, db: AsyncSession = Depends(get_db),
+    ):
+        from fastapi.responses import StreamingResponse
+        import json
+
+        async def gen():
+            mem = MemoryService(db)
+            while True:
+                doc = await mem.get_document(document_id)
+                if doc is None:
+                    yield f"event: done\ndata: {json.dumps({'status':'failed','error':'gone'})}\n\n"
+                    return
+                status = doc.status.value if hasattr(doc.status, "value") else doc.status
+                if status in ("ready", "failed"):
+                    yield ("event: done\ndata: " +
+                           json.dumps({"status": status, "error": doc.error_message},
+                                      ensure_ascii=False) + "\n\n")
+                    return
+                payload = {"page": doc.progress_page,
+                           "total": doc.page_count, "phase": "ingesting"}
+                yield "event: progress\ndata: " + json.dumps(payload) + "\n\n"
+                await asyncio.sleep(0.5)
+
+        return StreamingResponse(gen(), media_type="text/event-stream")
+
     return router

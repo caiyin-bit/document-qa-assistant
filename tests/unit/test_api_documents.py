@@ -101,3 +101,14 @@ async def test_upload_failure_cleans_temp(client, session_id):
     tmp_dir = Path("data/uploads/.tmp")
     leftovers = list(tmp_dir.glob("*.pdf")) if tmp_dir.exists() else []
     assert leftovers == [], f"leftover temp files: {leftovers}"
+
+
+@pytest.mark.asyncio
+async def test_list_documents(client, session_id):
+    files = {"file": ("a.pdf", FIXTURE.read_bytes(), "application/pdf")}
+    await client.post(f"/sessions/{session_id}/documents", files=files)
+    r = await client.get(f"/sessions/{session_id}/documents")
+    assert r.status_code == 200
+    rows = r.json()
+    assert len(rows) == 1
+    assert "filename" in rows[0] and "status" in rows[0] and "page_count" in rows[0]
