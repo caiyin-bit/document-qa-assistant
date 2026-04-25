@@ -41,7 +41,7 @@ async def _ingest_document(
                     c["content"] if isinstance(c, dict) else c.content
                     for c in chunks
                 ]
-                embeddings = embedder.encode_batch(contents)
+                embeddings = embedder.embed_batch(contents)
                 rows = []
                 for i, (c, emb) in enumerate(zip(chunks, embeddings)):
                     content = c["content"] if isinstance(c, dict) else c.content
