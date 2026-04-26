@@ -1,11 +1,25 @@
 import os
 import pytest
+from unittest.mock import AsyncMock, MagicMock
 from src.ingest.ingestion import cleanup_stale_documents
 from src.models.schemas import DocumentStatus
 
 os.environ.setdefault("MOONSHOT_API_KEY", "dummy")
 os.environ.setdefault("APP_USER_ID", "00000000-0000-0000-0000-000000000001")
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/docqa")
+os.environ.setdefault("REDIS_URL", "redis://redis:6379/0")
+
+
+@pytest.fixture
+def stub_arq_pool(monkeypatch):
+    """Replace `src.main.create_pool` with a stub returning a closeable mock.
+    Tests that build the production app on host (no real redis reachable)
+    must use this so the lifespan startup hook doesn't dial redis."""
+    fake_pool = MagicMock()
+    fake_pool.aclose = AsyncMock()
+    monkeypatch.setattr("src.main.create_pool",
+                         AsyncMock(return_value=fake_pool))
+    return fake_pool
 
 
 @pytest.mark.asyncio
@@ -34,7 +48,7 @@ async def test_stale_processing_marked_failed_and_chunks_purged(db_session):
 
 
 @pytest.mark.asyncio
-async def test_app_startup_invokes_cleanup(db_session):
+async def test_app_startup_invokes_cleanup(db_session, stub_arq_pool):
     """Verify the startup hook actually runs cleanup_stale_documents on app startup."""
     from src.core.memory_service import MemoryService
     from src.main import make_app_default, _production_deps
@@ -71,13 +85,43 @@ async def test_app_startup_invokes_cleanup(db_session):
 
 
 @pytest.mark.asyncio
-async def test_shutdown_closes_embedder():
+async def test_lifespan_creates_and_closes_arq_pool(monkeypatch):
+    """Backend startup must create an arq Redis pool; shutdown must close it."""
+    os.environ.setdefault("MOONSHOT_API_KEY", "dummy")
+    os.environ.setdefault("APP_USER_ID", "00000000-0000-0000-0000-000000000001")
+    os.environ["REDIS_URL"] = "redis://redis:6379/0"
+
+    from unittest.mock import AsyncMock, MagicMock
+    from src.main import _production_deps, make_app_default
+
+    _production_deps.cache_clear()
+
+    fake_pool = MagicMock()
+    fake_pool.aclose = AsyncMock()
+
+    create_calls = []
+
+    async def fake_create_pool(settings, **kw):
+        create_calls.append(settings)
+        return fake_pool
+
+    monkeypatch.setattr("src.main.create_pool", fake_create_pool)
+
+    app = make_app_default()
+    async with app.router.lifespan_context(app):
+        assert len(create_calls) == 1
+        assert app.state.arq_pool is fake_pool
+
+    fake_pool.aclose.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_shutdown_closes_embedder(stub_arq_pool):
     """FastAPI shutdown event must call embedder.close(wait=False)."""
     import os
     os.environ.setdefault("MOONSHOT_API_KEY", "dummy")
     os.environ.setdefault("APP_USER_ID", "00000000-0000-0000-0000-000000000001")
     from src.main import make_app_default, _production_deps
-    from unittest.mock import MagicMock
 
     _production_deps.cache_clear()
     app = make_app_default()
