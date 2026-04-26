@@ -16,6 +16,15 @@ services:
       timeout: 3s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
   backend:
     build: .
     command: >
@@ -28,6 +37,7 @@ services:
       MOONSHOT_BASE_URL: ${MOONSHOT_BASE_URL:-https://api.siliconflow.cn/v1}
       MOONSHOT_MODEL_ID: ${MOONSHOT_MODEL_ID:-Pro/moonshotai/Kimi-K2.6}
       APP_USER_ID: ${APP_USER_ID:-00000000-0000-0000-0000-000000000001}
+      REDIS_URL: redis://redis:6379/0
     volumes:
       - ./src:/app/src
       - ./persona:/app/persona
@@ -44,6 +54,33 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build: .
+    command: sh -c "uv run arq src.worker.main.WorkerSettings"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/docqa
+      REDIS_URL: redis://redis:6379/0
+      MOONSHOT_API_KEY: ${MOONSHOT_API_KEY}
+      MOONSHOT_BASE_URL: ${MOONSHOT_BASE_URL:-https://api.siliconflow.cn/v1}
+      MOONSHOT_MODEL_ID: ${MOONSHOT_MODEL_ID:-Pro/moonshotai/Kimi-K2.6}
+      APP_USER_ID: ${APP_USER_ID:-00000000-0000-0000-0000-000000000001}
+      HF_HOME: /root/.cache/huggingface
+    volumes:
+      - ./src:/app/src
+      - ./persona:/app/persona
+      - ./scripts:/app/scripts
+      - ./config.yaml:/app/config.yaml
+      - ./data/uploads:/app/data/uploads
+      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
 
   frontend:
     build: ./frontend
