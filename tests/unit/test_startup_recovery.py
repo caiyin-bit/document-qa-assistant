@@ -68,3 +68,24 @@ async def test_app_startup_invokes_cleanup(db_session):
         result = await fresh_db.execute(select(Document).where(Document.id == doc.id))
         after = result.scalar_one()
     assert after.status == DocumentStatus.failed
+
+
+@pytest.mark.asyncio
+async def test_shutdown_closes_embedder():
+    """FastAPI shutdown event must call embedder.close(wait=False)."""
+    import os
+    os.environ.setdefault("MOONSHOT_API_KEY", "dummy")
+    os.environ.setdefault("APP_USER_ID", "00000000-0000-0000-0000-000000000001")
+    from src.main import make_app_default, _production_deps
+    from unittest.mock import MagicMock
+
+    _production_deps.cache_clear()
+    app = make_app_default()
+    deps = _production_deps()
+    fake_close = MagicMock()
+    deps.embedder.close = fake_close
+
+    async with app.router.lifespan_context(app):
+        pass  # shutdown fires when block exits
+
+    fake_close.assert_called_once_with(wait=False)

@@ -99,4 +99,8 @@ def make_app_default() -> FastAPI:
             mem = MemoryService(db)
             await cleanup_stale_documents(mem)
 
+    @app.on_event("shutdown")
+    async def _close_embedder_on_shutdown():
+        deps.embedder.close(wait=False)
+
     return app
