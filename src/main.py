@@ -93,14 +93,6 @@ def make_app_default() -> FastAPI:
     deps = _production_deps()
     app = create_app(deps)
 
-    @app.on_event("startup")
-    async def _cleanup_stale_documents_on_startup():
-        from src.ingest.ingestion import cleanup_stale_documents
-        from src.core.memory_service import MemoryService
-        async with deps.sessionmaker() as db:
-            mem = MemoryService(db)
-            await cleanup_stale_documents(mem)
-
     _arq_pool_holder: dict = {}
 
     @app.on_event("startup")
@@ -108,6 +100,16 @@ def make_app_default() -> FastAPI:
         pool = await create_pool(make_redis_settings())
         _arq_pool_holder["pool"] = pool
         app.state.arq_pool = pool
+
+    @app.on_event("startup")
+    async def _reenqueue_processing_on_startup():
+        # Must run AFTER _create_arq_pool — declared after it so FastAPI
+        # invokes the hooks in source order.
+        from src.api.reaper import reenqueue_processing_documents
+        await reenqueue_processing_documents(
+            arq_pool=app.state.arq_pool,
+            sessionmaker=deps.sessionmaker,
+        )
 
     @app.on_event("shutdown")
     async def _close_arq_pool():

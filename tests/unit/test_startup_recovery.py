@@ -1,7 +1,6 @@
 import os
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from src.ingest.ingestion import cleanup_stale_documents
 from src.models.schemas import DocumentStatus
 
 os.environ.setdefault("MOONSHOT_API_KEY", "dummy")
@@ -17,71 +16,101 @@ def stub_arq_pool(monkeypatch):
     must use this so the lifespan startup hook doesn't dial redis."""
     fake_pool = MagicMock()
     fake_pool.aclose = AsyncMock()
+    fake_pool.enqueue_job = AsyncMock(return_value=MagicMock(job_id="ingest:test"))
     monkeypatch.setattr("src.main.create_pool",
                          AsyncMock(return_value=fake_pool))
     return fake_pool
 
 
 @pytest.mark.asyncio
-async def test_stale_processing_marked_failed_and_chunks_purged(db_session):
-    from src.core.memory_service import MemoryService
-    mem = MemoryService(db_session)
-    user = await mem.upsert_demo_user()
-    sess = await mem.create_session(user.id)
-    doc = await mem.create_document(user_id=user.id, session_id=sess.id,
-                                     filename="x.pdf", page_count=10, byte_size=1)
-    await mem.bulk_insert_chunks(doc.id, [
-        {"page_no": 1, "chunk_idx": 0, "content": "p1",
-         "embedding": [0.0]*1024, "token_count": 1},
-    ])
-    refreshed = await mem.get_document(doc.id)
-    assert refreshed.status == DocumentStatus.processing
+async def test_reaper_reenqueues_processing_docs_without_touching_state(db_session):
+    """Reaper enqueues with deterministic _job_id; doc state and chunks
+    are NOT touched (the worker's step-1 owns cleanup)."""
+    from sqlalchemy import insert, select
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+    from uuid import uuid4
+    from src.models.schemas import Document, DocumentChunk, User, Session as SessionRow
+    from src.api.reaper import reenqueue_processing_documents
+    from src.db.session import get_engine
 
-    await cleanup_stale_documents(mem)
+    user_id = uuid4()
+    sess_id = uuid4()
+    doc_id = uuid4()
+    await db_session.execute(insert(User).values(id=user_id, name="t"))
+    await db_session.execute(insert(SessionRow).values(id=sess_id, user_id=user_id))
+    await db_session.execute(insert(Document).values(
+        id=doc_id, user_id=user_id, session_id=sess_id, filename="x.pdf",
+        page_count=10, byte_size=1000, status=DocumentStatus.processing,
+        progress_page=42,
+    ))
+    await db_session.execute(insert(DocumentChunk).values(
+        id=uuid4(), document_id=doc_id, page_no=1, chunk_idx=0,
+        content="leftover", content_embedding=[0.0] * 1024, token_count=8,
+    ))
+    await db_session.commit()
 
-    after = await mem.get_document(doc.id)
-    assert after.status == DocumentStatus.failed
-    assert "解析中断" in after.error_message
-    hits = await mem.search_chunks(sess.id, query_embedding=[0.0]*1024,
-                                    top_k=10, min_similarity=0.0)
-    assert hits == []
+    fake_pool = MagicMock()
+    fake_pool.enqueue_job = AsyncMock(return_value=MagicMock())
+    sm = async_sessionmaker(get_engine(), expire_on_commit=False)
+
+    await reenqueue_processing_documents(arq_pool=fake_pool, sessionmaker=sm)
+
+    fake_pool.enqueue_job.assert_awaited_once()
+    args, kwargs = fake_pool.enqueue_job.call_args
+    assert args == ("ingest_document", str(doc_id))
+    assert kwargs == {"_job_id": f"ingest:{doc_id}"}
+
+    # Doc state untouched
+    await db_session.rollback()  # drop snapshot held by db_session
+    row = (await db_session.execute(
+        select(Document).where(Document.id == doc_id)
+    )).scalar_one()
+    assert row.status == DocumentStatus.processing
+    assert row.progress_page == 42
+    chunks = (await db_session.execute(
+        select(DocumentChunk).where(DocumentChunk.document_id == doc_id)
+    )).scalars().all()
+    assert len(chunks) == 1
 
 
 @pytest.mark.asyncio
-async def test_app_startup_invokes_cleanup(db_session, stub_arq_pool):
-    """Verify the startup hook actually runs cleanup_stale_documents on app startup."""
-    from src.core.memory_service import MemoryService
-    from src.main import make_app_default, _production_deps
-    import src.db.session as dbs
-    from src.db.session import get_engine, make_sessionmaker
+async def test_reaper_continues_when_one_enqueue_fails(db_session):
+    """A RedisError on one doc must not abort the sweep for the others."""
+    from sqlalchemy import insert
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+    from uuid import uuid4
+    from redis.exceptions import RedisError
+    from src.models.schemas import Document, User, Session as SessionRow
+    from src.api.reaper import reenqueue_processing_documents
+    from src.db.session import get_engine
 
-    mem = MemoryService(db_session)
-    user = await mem.upsert_demo_user()
-    sess = await mem.create_session(user.id)
-    doc = await mem.create_document(user_id=user.id, session_id=sess.id,
-                                     filename="x.pdf", page_count=1, byte_size=1)
-    # Commit so the startup hook's separate DB session can see the row
+    user_id = uuid4()
+    sess_id = uuid4()
+    doc_a = uuid4()
+    doc_b = uuid4()
+    await db_session.execute(insert(User).values(id=user_id, name="t"))
+    await db_session.execute(insert(SessionRow).values(id=sess_id, user_id=user_id))
+    for did in (doc_a, doc_b):
+        await db_session.execute(insert(Document).values(
+            id=did, user_id=user_id, session_id=sess_id, filename="x.pdf",
+            page_count=1, byte_size=1, status=DocumentStatus.processing,
+        ))
     await db_session.commit()
 
-    # Clear caches so a fresh app instance gets its own engine/sessionmaker
-    _production_deps.cache_clear()
-    dbs._default_sm = None
+    call_count = {"n": 0}
 
-    app = make_app_default()
-    # Directly invoke startup handlers (ASGITransport does not trigger lifespan)
-    for handler in app.router.on_startup:
-        await handler()
+    async def flaky(*args, **kwargs):
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            raise RedisError("transient")
+        return MagicMock()
 
-    # The hook committed via its own session. Use a fresh independent session to
-    # verify — db_session's open transaction sees the pre-hook snapshot even after
-    # rollback due to PostgreSQL read-committed semantics within a connection.
-    from sqlalchemy import select
-    from src.models.schemas import Document
-    sm = make_sessionmaker(get_engine())
-    async with sm() as fresh_db:
-        result = await fresh_db.execute(select(Document).where(Document.id == doc.id))
-        after = result.scalar_one()
-    assert after.status == DocumentStatus.failed
+    fake_pool = MagicMock()
+    fake_pool.enqueue_job = AsyncMock(side_effect=flaky)
+    sm = async_sessionmaker(get_engine(), expire_on_commit=False)
+
+    await reenqueue_processing_documents(arq_pool=fake_pool, sessionmaker=sm)
+    assert call_count["n"] == 2  # both attempted
 
 
 @pytest.mark.asyncio
@@ -91,13 +120,13 @@ async def test_lifespan_creates_and_closes_arq_pool(monkeypatch):
     os.environ.setdefault("APP_USER_ID", "00000000-0000-0000-0000-000000000001")
     os.environ["REDIS_URL"] = "redis://redis:6379/0"
 
-    from unittest.mock import AsyncMock, MagicMock
     from src.main import _production_deps, make_app_default
 
     _production_deps.cache_clear()
 
     fake_pool = MagicMock()
     fake_pool.aclose = AsyncMock()
+    fake_pool.enqueue_job = AsyncMock(return_value=MagicMock(job_id="ingest:test"))
 
     create_calls = []
 
@@ -118,7 +147,6 @@ async def test_lifespan_creates_and_closes_arq_pool(monkeypatch):
 @pytest.mark.asyncio
 async def test_shutdown_closes_embedder(stub_arq_pool):
     """FastAPI shutdown event must call embedder.close(wait=False)."""
-    import os
     os.environ.setdefault("MOONSHOT_API_KEY", "dummy")
     os.environ.setdefault("APP_USER_ID", "00000000-0000-0000-0000-000000000001")
     from src.main import make_app_default, _production_deps

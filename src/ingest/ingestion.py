@@ -127,21 +127,3 @@ async def _ingest_with_timeout(
         )
 
 
-async def cleanup_stale_documents(mem) -> None:
-    """Startup hook (spec §4 'a'): for each processing doc, delete its chunks
-    then mark failed with '解析中断'.
-    """
-    from sqlalchemy import select
-    from src.models.schemas import Document
-    result = await mem.db.execute(
-        select(Document).where(Document.status == DocumentStatus.processing)
-    )
-    stale = result.scalars().all()
-    for doc in stale:
-        await mem.delete_chunks_for_document(doc.id)
-        await mem.update_document(
-            doc.id,
-            status=DocumentStatus.failed,
-            error_message="解析中断（服务重启），请删除后重新上传",
-            progress_page=0,
-        )
