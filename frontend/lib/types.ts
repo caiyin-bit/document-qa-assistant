@@ -34,7 +34,7 @@ export type ToolChip = { id: string; name: string; status: ToolStatus };
 
 export type Message = {
   id: string;            // client-generated uuid
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "system";
   content: string;
   tools: ToolCall[];     // only meaningful on assistant
   citations?: Citation[];
@@ -46,4 +46,5 @@ export type HistoricalMessage = {
   tool_calls:
     | { id: string; name: string; arguments: unknown }[]
     | null;
+  citations?: Citation[] | null;
 };

@@ -31,6 +31,7 @@ frontend/.next/
 frontend/out/
 frontend/next-env.d.ts
 frontend/tsconfig.tsbuildinfo
+frontend/.pnpm-store/
 
 # Uploaded files (dev only — prod uses object storage)
 data/uploads/

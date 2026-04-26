@@ -59,6 +59,12 @@ export function SessionsSidebar({
           }}
         >
           <Plus className="h-4 w-4" /> 新对话
+          <kbd
+            className="ml-auto rounded border px-1 py-0 text-[9px] font-mono opacity-70"
+            style={{ borderColor: "var(--app-text-on-accent)" }}
+          >
+            ⌘K
+          </kbd>
         </button>
       </div>
       <div

@@ -1,11 +1,11 @@
-"""Tests for KimiClient — mocks the underlying AsyncOpenAI."""
+"""Tests for GeminiClient — mocks the underlying AsyncOpenAI."""
 
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
 
-from src.llm.kimi_client import KimiClient, LlmResponse, ToolCall
+from src.llm.gemini_client import GeminiClient, LlmResponse, ToolCall
 
 
 @pytest.fixture()
@@ -22,7 +22,7 @@ async def test_plain_text_response(fake_client):
             )
         ]
     )
-    client = KimiClient(openai_client=fake_client, model_id="kimi-k2.6")
+    client = GeminiClient(openai_client=fake_client, model_id="gemini-2.5-flash")
     resp: LlmResponse = await client.chat(
         messages=[{"role": "user", "content": "hi"}], tools=[]
     )
@@ -50,7 +50,7 @@ async def test_tool_call_response(fake_client):
             )
         ]
     )
-    client = KimiClient(openai_client=fake_client, model_id="kimi-k2.6")
+    client = GeminiClient(openai_client=fake_client, model_id="gemini-2.5-flash")
     resp = await client.chat(messages=[], tools=[])
     assert resp.content is None
     assert len(resp.tool_calls) == 1
@@ -79,7 +79,7 @@ async def test_retries_on_transient_error(monkeypatch):
     fake = SimpleNamespace(
         chat=SimpleNamespace(completions=SimpleNamespace(create=flaky))
     )
-    client = KimiClient(openai_client=fake, model_id="k", max_retries=3)
+    client = GeminiClient(openai_client=fake, model_id="k", max_retries=3)
     resp = await client.chat(messages=[], tools=[])
     assert resp.content == "ok"
     assert call_count["n"] == 3

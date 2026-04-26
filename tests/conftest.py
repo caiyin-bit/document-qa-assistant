@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dotenv import load_dotenv
 
-# Load .env at test session start so MOONSHOT_API_KEY etc. are available.
+# Load .env at test session start so GEMINI_API_KEY etc. are available.
 load_dotenv()
 
 import pytest_asyncio

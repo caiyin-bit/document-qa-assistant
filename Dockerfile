@@ -27,6 +27,11 @@ ENV PYTHONPATH=/app
 # --frozen, uv re-resolves through UV_DEFAULT_INDEX (Tsinghua) above.
 # Trade-off: reproducibility weakened, but acceptable for dev images.
 COPY pyproject.toml uv.lock ./
+# vendor/ holds wheels for deps Tsinghua's PyPI mirror serves intermittently
+# (currently just zhconv). UV_FIND_LINKS makes uv prefer them over network
+# fetches, which keeps `uv sync` deterministic on CN networks.
+COPY vendor/ ./vendor/
+ENV UV_FIND_LINKS=/app/vendor
 RUN uv sync --no-dev --no-install-project
 
 # Now copy source (will be overridden by bind mount in dev).

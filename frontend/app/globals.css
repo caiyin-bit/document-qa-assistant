@@ -227,3 +227,61 @@
   --app-status-err-fg: #EF4444;
   --app-status-err-card-border: #3F0E1A;
 }
+/* ---- markdown bubble ---- */
+.markdown-body { font-size: 14px; line-height: 1.6; }
+.markdown-body > *:first-child { margin-top: 0; }
+.markdown-body > *:last-child { margin-bottom: 0; }
+.markdown-body p { margin: 0.4em 0; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body ul, .markdown-body ol { padding-left: 1.4em; margin: 0.4em 0; }
+.markdown-body li { margin: 0.2em 0; }
+.markdown-body h1, .markdown-body h2, .markdown-body h3 {
+  margin: 0.8em 0 0.4em; font-weight: 600;
+}
+.markdown-body h1 { font-size: 1.2em; }
+.markdown-body h2 { font-size: 1.1em; }
+.markdown-body h3 { font-size: 1.05em; }
+.markdown-body code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em; padding: 0.1em 0.3em; border-radius: 3px;
+  background: var(--app-surface-input); color: var(--app-accent-text-bright);
+}
+.markdown-body pre {
+  background: var(--app-surface-input); padding: 0.6em 0.8em;
+  border-radius: 6px; overflow-x: auto; margin: 0.6em 0;
+}
+.markdown-body pre code { background: transparent; padding: 0; }
+.markdown-body blockquote {
+  border-left: 3px solid var(--app-border-subtle);
+  padding-left: 0.8em; margin: 0.6em 0; opacity: 0.8;
+}
+.markdown-body a { color: var(--app-accent); text-decoration: underline; }
+.markdown-body table {
+  border-collapse: collapse; margin: 0.5em 0; font-size: 0.95em;
+}
+.markdown-body th, .markdown-body td {
+  border: 1px solid var(--app-border-subtle); padding: 0.3em 0.6em;
+}
+.markdown-body th {
+  background: var(--app-surface-input); font-weight: 600;
+}
+
+/* ---- mobile responsive (≤ 768px) ----
+ * Hide the two side panels on narrow viewports; chat takes full width.
+ * Document upload + session switching remain accessible on desktop;
+ * the mobile UX is read-mostly until we add a hamburger drawer. */
+@media (max-width: 768px) {
+  aside[class*="w-[220px]"], aside[class*="w-[260px]"] { display: none; }
+  aside[class*="w-[44%]"] { display: none; }  /* PDF viewer too */
+  .markdown-body { font-size: 13px; }
+}
+
+/* ---- light-mode contrast polish ----
+ * The default light palette is built from the dark spec; a few spots
+ * needed manual tightening for AA contrast. */
+:root:not(.dark) .markdown-body code {
+  background: rgba(0, 0, 0, 0.06);
+}
+:root:not(.dark) .markdown-body pre {
+  background: rgba(0, 0, 0, 0.04);
+}

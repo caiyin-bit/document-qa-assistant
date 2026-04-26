@@ -1,7 +1,11 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronDown, FilePlus2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { uploadDocument, deleteDocument } from "@/lib/api";
+import {
+  attachDocuments, deleteDocument, listUserLibrary, uploadDocument,
+  type LibraryDocument,
+} from "@/lib/api";
 import type { Document } from "@/lib/types";
 import { DocumentRow } from "./document-row";
 
@@ -14,15 +18,55 @@ type Props = {
 export function DocumentSidebar({ sessionId, docs, onChange }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [libOpen, setLibOpen] = useState(false);
+  const [library, setLibrary] = useState<LibraryDocument[]>([]);
+  const [libLoading, setLibLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  async function handleUpload(file: File) {
+  async function handleUpload(files: File | File[]) {
+    const list = Array.isArray(files) ? files : [files];
+    setError(null);
+    // Sequential upload — backend serialises ingestion in the same arq
+    // worker anyway, and parallel POSTs would just race on the same
+    // bge_executor queue. Sequential keeps progress UI sensible.
+    const errors: string[] = [];
+    for (const f of list) {
+      try {
+        await uploadDocument(sessionId, f);
+        onChange();
+      } catch (e: unknown) {
+        errors.push(`${f.name}: ${e instanceof Error ? e.message : "上传失败"}`);
+      }
+    }
+    if (errors.length) setError(errors.join("\n"));
+  }
+
+  async function refreshLibrary() {
+    setLibLoading(true);
+    try {
+      setLibrary(await listUserLibrary(sessionId));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "加载文档库失败");
+    } finally {
+      setLibLoading(false);
+    }
+  }
+
+  // Lazy-load when the dropdown opens — avoids the extra GET on every
+  // session open for users who never click "import existing".
+  useEffect(() => {
+    if (libOpen) refreshLibrary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [libOpen, sessionId]);
+
+  async function handleAttach(documentId: string) {
     setError(null);
     try {
-      await uploadDocument(sessionId, file);
+      await attachDocuments(sessionId, [documentId]);
+      setLibrary((prev) => prev.filter((d) => d.document_id !== documentId));
       onChange();
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "上传失败");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "导入失败");
     }
   }
 
@@ -51,8 +95,8 @@ export function DocumentSidebar({ sessionId, docs, onChange }: Props) {
       onDrop={(e) => {
         e.preventDefault();
         setDragging(false);
-        const f = e.dataTransfer.files[0];
-        if (f) handleUpload(f);
+        const files = Array.from(e.dataTransfer.files);
+        if (files.length) handleUpload(files);
       }}
     >
       <div
@@ -89,6 +133,80 @@ export function DocumentSidebar({ sessionId, docs, onChange }: Props) {
         className="border-t p-3"
         style={{ borderColor: "var(--app-border-subtle)" }}
       >
+        {/* Library picker — opens a dropdown of the user's other ready
+            docs (uploaded in earlier sessions) so they can be attached
+            without re-uploading. */}
+        <div className="relative mb-2">
+          <button
+            onClick={() => setLibOpen((v) => !v)}
+            className="flex w-full items-center justify-between rounded-md border px-2.5 py-1.5 text-[12px] transition hover:opacity-90"
+            style={{
+              backgroundColor: "var(--app-bg)",
+              borderColor: "var(--app-border-subtle)",
+              color: "var(--app-text-secondary)",
+            }}
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <FilePlus2 className="h-3.5 w-3.5" /> 添加已有文档
+            </span>
+            <ChevronDown
+              className={`h-3.5 w-3.5 transition ${libOpen ? "rotate-180" : ""}`}
+            />
+          </button>
+          {libOpen && (
+            <div
+              className="absolute bottom-full left-0 right-0 mb-1 max-h-[260px] overflow-y-auto rounded-md border shadow-lg"
+              style={{
+                backgroundColor: "var(--app-surface-elevated)",
+                borderColor: "var(--app-border-subtle)",
+              }}
+            >
+              {libLoading && (
+                <div
+                  className="px-3 py-2 text-[11px] italic"
+                  style={{ color: "var(--app-text-faint)" }}
+                >
+                  加载中…
+                </div>
+              )}
+              {!libLoading && library.length === 0 && (
+                <div
+                  className="px-3 py-2 text-[11px]"
+                  style={{ color: "var(--app-text-faint)" }}
+                >
+                  没有可导入的文档
+                </div>
+              )}
+              {library.map((d) => (
+                <button
+                  key={d.document_id}
+                  onClick={() => handleAttach(d.document_id)}
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left transition hover:opacity-80"
+                  style={{ color: "var(--app-text-primary)" }}
+                >
+                  <span
+                    className="inline-flex h-[14px] w-[14px] shrink-0 items-center justify-center rounded-sm text-[7px] font-bold font-mono"
+                    style={{
+                      backgroundColor: "var(--app-pdf-badge-bg)",
+                      color: "var(--app-pdf-badge-fg)",
+                    }}
+                  >
+                    PDF
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-[12px]">
+                    {d.filename}
+                  </span>
+                  <span
+                    className="shrink-0 text-[10px] font-mono"
+                    style={{ color: "var(--app-text-tertiary)" }}
+                  >
+                    {d.page_count}p
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <button
           onClick={() => inputRef.current?.click()}
           className="block w-full rounded-md border-2 border-dashed px-3 py-3 text-center transition"
@@ -115,10 +233,12 @@ export function DocumentSidebar({ sessionId, docs, onChange }: Props) {
           ref={inputRef}
           type="file"
           accept=".pdf"
+          multiple
           hidden
           onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) handleUpload(f);
+            const files = Array.from(e.target.files || []);
+            if (files.length) handleUpload(files);
+            e.target.value = "";  // allow re-selecting same file later
           }}
         />
         {error && (

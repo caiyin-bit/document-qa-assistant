@@ -1,12 +1,12 @@
-"""Tests for KimiClient.chat_stream — streaming chat completion."""
+"""Tests for GeminiClient.chat_stream — streaming chat completion."""
 
 from unittest.mock import AsyncMock
 
 import pytest
 
-from src.llm.kimi_client import (
+from src.llm.gemini_client import (
     Chunk,
-    KimiClient,
+    GeminiClient,
     LlmCallFailed,
     ToolCallDelta,
 )
@@ -84,7 +84,7 @@ async def test_chat_stream_text_only(monkeypatch):
     ])
     mock_create = AsyncMock(return_value=stream_iter)
 
-    client = KimiClient(openai_client=None, model_id="test-model")
+    client = GeminiClient(openai_client=None, model_id="test-model")
     monkeypatch.setattr(client, "_client", type("X", (), {
         "chat": type("C", (), {
             "completions": type("Cm", (), {
@@ -113,7 +113,7 @@ async def test_chat_stream_tool_call_deltas(monkeypatch):
     ])
     mock_create = AsyncMock(return_value=stream_iter)
 
-    client = KimiClient(openai_client=None, model_id="test-model")
+    client = GeminiClient(openai_client=None, model_id="test-model")
     monkeypatch.setattr(client, "_client", type("X", (), {
         "chat": type("C", (), {
             "completions": type("Cm", (), {"create": mock_create})(),
@@ -140,7 +140,7 @@ async def test_chat_stream_mid_stream_error_propagates(monkeypatch):
     stream_iter = _FakeStreamIter([_mk_chunk(content="hi")], raise_after=1)
     mock_create = AsyncMock(return_value=stream_iter)
 
-    client = KimiClient(openai_client=None, model_id="test-model")
+    client = GeminiClient(openai_client=None, model_id="test-model")
     monkeypatch.setattr(client, "_client", type("X", (), {
         "chat": type("C", (), {
             "completions": type("Cm", (), {"create": mock_create})(),
@@ -164,7 +164,7 @@ async def test_chat_stream_no_finish_reason_is_protocol_error(monkeypatch):
     stream_iter = _FakeStreamIter([_mk_chunk(content="hi")])  # no finish
     mock_create = AsyncMock(return_value=stream_iter)
 
-    client = KimiClient(openai_client=None, model_id="test-model")
+    client = GeminiClient(openai_client=None, model_id="test-model")
     monkeypatch.setattr(client, "_client", type("X", (), {
         "chat": type("C", (), {
             "completions": type("Cm", (), {"create": mock_create})(),

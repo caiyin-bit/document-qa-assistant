@@ -2,9 +2,12 @@
 import { useState } from "react";
 import type { Citation } from "@/lib/types";
 
-type Props = { citations: Citation[] };
+type Props = {
+  citations: Citation[];
+  onOpenPdf?: (doc_id: string, page: number, filename: string) => void;
+};
 
-export function CitationCard({ citations }: Props) {
+export function CitationCard({ citations, onOpenPdf }: Props) {
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   if (!citations || citations.length === 0) return null;
 
@@ -64,16 +67,22 @@ export function CitationCard({ citations }: Props) {
                 {c.snippet}
               </div>
             </div>
-            <span
-              className="ml-2 shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] font-semibold font-mono"
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenPdf?.(c.doc_id, c.page_no, c.filename);
+              }}
+              title="在右侧打开 PDF 跳到该页"
+              className="ml-2 shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] font-semibold font-mono transition hover:opacity-80 hover:underline"
               style={{
                 backgroundColor: "var(--app-accent-bg)",
                 borderColor: "var(--app-accent-border)",
                 color: "var(--app-accent-text-light)",
+                cursor: onOpenPdf ? "pointer" : "default",
               }}
             >
               p.{c.page_no}
-            </span>
+            </button>
           </div>
         ))}
       </div>

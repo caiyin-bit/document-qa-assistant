@@ -15,7 +15,7 @@ dependencies = [
     "pgvector>=0.2.5",
     "torch>=2.0", # explicit so [tool.uv.sources] override applies (CPU wheel)
     "sentence-transformers>=2.6",
-    "openai>=1.30", # Moonshot/硅基流动兼容 OpenAI 协议
+    "openai>=1.30", # Gemini/硅基流动兼容 OpenAI 协议
     "httpx>=0.27",
     "python-dotenv>=1.0",
     "pyyaml>=6.0",
@@ -24,6 +24,7 @@ dependencies = [
     "python-multipart>=0.0.26",
     "arq>=0.26",
     "redis>=5.0",
+    "zhconv>=1.4", # 繁简归一化 — 见 src/ingest/zh_normalize.py
 ]
 
 [project.optional-dependencies]

@@ -54,6 +54,10 @@ class HistoricalMessage(BaseModel):
     role: str
     content: str | None
     tool_calls: list[dict] | None = None
+    # Persisted citations (DB column messages.citations JSONB) so the
+    # citation card + clickable PDF chips survive a page refresh. Each
+    # element is the same dict the SSE `citations` event emits.
+    citations: list[dict] | None = None
 
 
 @dataclass(frozen=True)
@@ -77,6 +81,8 @@ class ChatDependencies:
     settings: ConvSettings
     min_similarity: float = 0.35
     top_k: int = 16
+    reranker: object | None = None  # exposes .score_pairs_async(query, passages)
+    rerank_top_n: int = 5
 
 
 def make_router(deps: ChatDependencies) -> APIRouter:
@@ -96,12 +102,15 @@ def make_router(deps: ChatDependencies) -> APIRouter:
             embedder=deps.embedder,
             min_similarity=deps.min_similarity,
             top_k=deps.top_k,
+            reranker=deps.reranker,
+            rerank_top_n=deps.rerank_top_n,
         )
         return ConversationEngine(
             mem=mem,
             llm=deps.llm,
             tools=tools,
             persona=deps.persona.load(),
+            max_tool_iterations=deps.settings.max_tool_iterations,
         )
 
     @router.post("/sessions", response_model=SessionCreatedResponse)
@@ -185,6 +194,7 @@ def make_router(deps: ChatDependencies) -> APIRouter:
                 role=m.role,
                 content=m.content,
                 tool_calls=m.tool_calls,
+                citations=m.citations,
             ))
         return out
 
@@ -192,6 +202,16 @@ def make_router(deps: ChatDependencies) -> APIRouter:
     async def chat_stream(
         req: ChatRequest, db: AsyncSession = Depends(get_db)
     ) -> SSEStreamingResponse:
+        # Validate session up-front so a stale frontend session_id (e.g.
+        # leftover in URL after a session was deleted or DB truncated)
+        # produces a 404, not an FK violation deep inside the SSE stream.
+        memory = _build_memory(db)
+        sess = await memory.get_session(req.session_id)
+        if sess is None or sess.user_id != deps.default_user_id:
+            raise HTTPException(
+                status_code=404,
+                detail="session not found or not owned by current user",
+            )
         engine = _build_engine(db)
         events = engine.handle_stream(
             session_id=req.session_id,

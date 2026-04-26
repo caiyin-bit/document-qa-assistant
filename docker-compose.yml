@@ -33,9 +33,9 @@ services:
              uv run uvicorn src.main:make_app_default --factory --host 0.0.0.0 --port 8000 --reload"
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/docqa
-      MOONSHOT_API_KEY: ${MOONSHOT_API_KEY}
-      MOONSHOT_BASE_URL: ${MOONSHOT_BASE_URL:-https://api.siliconflow.cn/v1}
-      MOONSHOT_MODEL_ID: ${MOONSHOT_MODEL_ID:-Pro/moonshotai/Kimi-K2.6}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_BASE_URL: ${GEMINI_BASE_URL:-https://deeprouter.top/v1}
+      GEMINI_MODEL_ID: ${GEMINI_MODEL_ID:-gemini-2.5-flash}
       APP_USER_ID: ${APP_USER_ID:-00000000-0000-0000-0000-000000000001}
       REDIS_URL: redis://redis:6379/0
     volumes:
@@ -59,13 +59,16 @@ services:
 
   worker:
     build: .
-    command: sh -c "uv run arq src.worker.main.WorkerSettings"
+    # --watch reloads the worker process on .py changes under /app/src,
+    # mirroring uvicorn --reload on the backend. Without this, ingestion
+    # code changes silently keep running stale logic until manual restart.
+    command: sh -c "uv run arq src.worker.main.WorkerSettings --watch /app/src"
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/docqa
       REDIS_URL: redis://redis:6379/0
-      MOONSHOT_API_KEY: ${MOONSHOT_API_KEY}
-      MOONSHOT_BASE_URL: ${MOONSHOT_BASE_URL:-https://api.siliconflow.cn/v1}
-      MOONSHOT_MODEL_ID: ${MOONSHOT_MODEL_ID:-Pro/moonshotai/Kimi-K2.6}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_BASE_URL: ${GEMINI_BASE_URL:-https://deeprouter.top/v1}
+      GEMINI_MODEL_ID: ${GEMINI_MODEL_ID:-gemini-2.5-flash}
       APP_USER_ID: ${APP_USER_ID:-00000000-0000-0000-0000-000000000001}
       HF_HOME: /root/.cache/huggingface
     volumes:

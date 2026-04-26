@@ -72,6 +72,31 @@ class Document(Base):
     ingestion_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class SessionDocument(Base):
+    """M2M link: which documents are visible/usable in which sessions.
+
+    A doc is created in one "owning" session (Document.session_id) but can
+    later be attached to other sessions so the same PDF doesn't have to
+    be re-uploaded for each conversation. List + retrieve queries go
+    through this table; documents.session_id is kept only as the
+    creating-session pointer for audit.
+    """
+    __tablename__ = "session_documents"
+    session_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("sessions.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    document_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("documents.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    attached_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(),
+    )
+
+
 class DocumentChunk(Base):
     __tablename__ = "document_chunks"
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)

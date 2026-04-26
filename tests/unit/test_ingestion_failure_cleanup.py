@@ -11,6 +11,7 @@ async def test_midrun_exception_cleans_partial_chunks():
     from src.ingest.pdf_parser import PdfValidationError
 
     mem = MagicMock()
+    mem.get_document = AsyncMock(return_value=MagicMock(filename="x.pdf"))
     mem.bulk_insert_chunks = AsyncMock()
     mem.update_document = AsyncMock()
     mem.delete_chunks_for_document = AsyncMock()
@@ -32,6 +33,7 @@ async def test_midrun_exception_cleans_partial_chunks():
 @pytest.mark.asyncio
 async def test_happy_path_marks_ready():
     mem = MagicMock()
+    mem.get_document = AsyncMock(return_value=MagicMock(filename="x.pdf"))
     mem.bulk_insert_chunks = AsyncMock()
     mem.update_document = AsyncMock()
     mem.delete_chunks_for_document = AsyncMock()
@@ -59,6 +61,7 @@ async def test_infra_error_propagates_for_arq_retry():
     from sqlalchemy.exc import OperationalError
 
     mem = MagicMock()
+    mem.get_document = AsyncMock(return_value=MagicMock(filename="x.pdf"))
     mem.bulk_insert_chunks = AsyncMock(side_effect=OperationalError("conn", {}, Exception("blip")))
     mem.update_document = AsyncMock()
     mem.delete_chunks_for_document = AsyncMock()
@@ -87,6 +90,7 @@ async def test_pdf_validation_error_marks_failed():
         raise PdfValidationError("PDF 损坏")
         yield  # make it a generator
     mem = MagicMock()
+    mem.get_document = AsyncMock(return_value=MagicMock(filename="x.pdf"))
     mem.update_document = AsyncMock()
     mem.delete_chunks_for_document = AsyncMock()
     embedder = MagicMock()

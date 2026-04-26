@@ -1,7 +1,10 @@
-"""Kimi (Moonshot / SiliconFlow) LLM client wrapping AsyncOpenAI.
+"""LLM client wrapping AsyncOpenAI for any OpenAI-compatible gateway.
 
-Moonshot / SiliconFlow 都兼容 OpenAI chat.completions 协议,
-我们直接用 AsyncOpenAI 客户端,把 base_url / api_key 指向对应服务.
+Default deployment uses Gemini (gemini-2.5-flash) via deeprouter, but
+the class works against any provider that speaks the OpenAI
+chat.completions protocol — just point base_url / api_key at it.
+The "Gemini" name in the class is historical; treat it as a generic
+OpenAI-protocol client.
 """
 
 from __future__ import annotations
@@ -11,6 +14,7 @@ import logging
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 
+import httpx
 from openai import AsyncOpenAI
 from tenacity import (
     AsyncRetrying,
@@ -46,7 +50,7 @@ class Chunk:
     set on a single chunk — e.g. the final chunk often carries both
     finish_reason and the last text_delta. Engine handles each field
     independently. Stream MUST end with at least one chunk carrying
-    finish_reason (else KimiClient raises LlmCallFailed).
+    finish_reason (else GeminiClient raises LlmCallFailed).
     """
     text_delta: str | None = None
     tool_call_deltas: list[ToolCallDelta] | None = None
@@ -83,7 +87,7 @@ class LlmCallFailed(Exception):
     pass
 
 
-class KimiClient:
+class GeminiClient:
     def __init__(
         self,
         openai_client: AsyncOpenAI,
@@ -95,9 +99,16 @@ class KimiClient:
         self._max_retries = max_retries
 
     @classmethod
-    def from_config(cls, base_url: str, api_key: str, model_id: str) -> "KimiClient":
+    def from_config(cls, base_url: str, api_key: str, model_id: str) -> "GeminiClient":
+        # Per-phase timeout so a stalled upstream stream fails fast
+        # (read=90s) instead of hanging the chat for many minutes. Connect
+        # is short because we trust the stable cn route. Without this, a
+        # hung stream blocked /chat/stream forever.
+        timeout = httpx.Timeout(connect=10.0, read=90.0, write=15.0, pool=15.0)
         return cls(
-            openai_client=AsyncOpenAI(base_url=base_url, api_key=api_key),
+            openai_client=AsyncOpenAI(
+                base_url=base_url, api_key=api_key, timeout=timeout,
+            ),
             model_id=model_id,
         )
 
@@ -173,9 +184,20 @@ class KimiClient:
             ):
                 with attempt:
                     stream = await self._client.chat.completions.create(**payload)
-        except RetryError as e:
-            raise LlmCallFailed(str(e)) from e
         except Exception as e:
+            shape = [
+                {
+                    "role": m.get("role"),
+                    "content_len": len(m.get("content") or ""),
+                    "has_tool_calls": "tool_calls" in m,
+                    "has_tool_call_id": "tool_call_id" in m,
+                }
+                for m in payload["messages"]
+            ]
+            log.warning(
+                "gemini.chat_stream rejected: model=%s tools_present=%s shape=%s err=%s",
+                payload.get("model"), "tools" in payload, shape, e,
+            )
             raise LlmCallFailed(str(e)) from e
 
         saw_finish_reason = False

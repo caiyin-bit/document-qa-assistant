@@ -5,7 +5,7 @@ Run with:
 
 Requires:
   - tests/fixtures/example/腾讯2025年度报告.pdf (challenge-provided, gitignored)
-  - MOONSHOT_API_KEY env var set to a real key
+  - GEMINI_API_KEY env var set to a real key
   - postgres running (docker compose up -d postgres)
 """
 import asyncio
@@ -23,8 +23,8 @@ pytestmark = [
     pytest.mark.skipif(not PDF.exists(),
                         reason=f"E2E fixture missing: {PDF}"),
     pytest.mark.skipif(
-        os.environ.get("MOONSHOT_API_KEY", "dummy") == "dummy",
-        reason="MOONSHOT_API_KEY must be a real key for E2E"),
+        os.environ.get("GEMINI_API_KEY", "dummy") == "dummy",
+        reason="GEMINI_API_KEY must be a real key for E2E"),
 ]
 
 
@@ -125,8 +125,8 @@ async def test_out_of_scope_query_says_not_found(client_with_doc):
 @pytest.mark.asyncio
 async def test_b_empty_no_documents_uploaded():
     """Doesn't need the PDF — just exercises the no-docs path with real LLM."""
-    if os.environ.get("MOONSHOT_API_KEY", "dummy") == "dummy":
-        pytest.skip("MOONSHOT_API_KEY required")
+    if os.environ.get("GEMINI_API_KEY", "dummy") == "dummy":
+        pytest.skip("GEMINI_API_KEY required")
     os.environ.setdefault("APP_USER_ID", "00000000-0000-0000-0000-000000000001")
     os.environ.setdefault("DATABASE_URL",
                            "postgresql+asyncpg://postgres:postgres@localhost:5432/docqa")

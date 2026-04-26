@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 # Set BEFORE importing src.* so make_redis_settings/load_config see the right URLs
 os.environ["DATABASE_URL"] = "postgresql+asyncpg://postgres:postgres@localhost:55432/docqa_test"
 os.environ["REDIS_URL"] = "redis://localhost:56379/0"
-os.environ.setdefault("MOONSHOT_API_KEY", "dummy")
+os.environ.setdefault("GEMINI_API_KEY", "dummy")
 os.environ.setdefault("APP_USER_ID", "00000000-0000-0000-0000-000000000001")
 
 from src.models.schemas import (

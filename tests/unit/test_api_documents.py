@@ -6,7 +6,7 @@ import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 
 # Set required env vars before importing main
-os.environ.setdefault("MOONSHOT_API_KEY", "dummy")
+os.environ.setdefault("GEMINI_API_KEY", "dummy")
 os.environ.setdefault("APP_USER_ID", "00000000-0000-0000-0000-000000000001")
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/docqa")
 os.environ.setdefault("REDIS_URL", "redis://redis:6379/0")

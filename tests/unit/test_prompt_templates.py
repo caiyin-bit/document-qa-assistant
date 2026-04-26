@@ -4,10 +4,11 @@ from src.core.prompt_templates import (
 
 
 def test_fixed_responses_match_spec_exact():
-    assert FIXED_RESPONSES["B-EMPTY"] == "请先上传 PDF 文档以开始提问。"
-    assert FIXED_RESPONSES["B-PROCESSING"] == "文档正在解析中，请稍候再提问。"
+    # Only B-FAILED stays canned; B-EMPTY and B-PROCESSING route to LLM chat.
     assert FIXED_RESPONSES["B-FAILED"] == "已上传的文档解析失败，请删除后重新上传。"
     assert FIXED_RESPONSES["NO_MATCH"] == "在已上传文档中未找到相关信息。"
+    assert "B-EMPTY" not in FIXED_RESPONSES
+    assert "B-PROCESSING" not in FIXED_RESPONSES
 
 
 def test_select_template_a_when_ready_geq_1():
@@ -37,7 +38,13 @@ def test_render_template_a_includes_filenames():
     assert "search_documents" in p
 
 
-def test_render_template_b_returns_marker():
+def test_render_template_b_empty_omits_persona_and_signals_no_docs():
     p = render_system_prompt("B-EMPTY", docs=[], persona="你是助手")
-    # B templates also include the persona to keep voice consistent
-    assert "你是助手" in p
+    # Persona deliberately omitted — it would over-constrain plain chat.
+    assert "你是助手" not in p
+    assert "尚未上传" in p
+
+
+def test_render_template_b_processing_hints_at_parsing_in_progress():
+    p = render_system_prompt("B-PROCESSING", docs=[], persona="你是助手")
+    assert "解析中" in p

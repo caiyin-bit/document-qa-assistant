@@ -15,6 +15,7 @@ def _approx(needle):
 @pytest.mark.asyncio
 async def test_scanned_pdf_marks_failed():
     mem = MagicMock()
+    mem.get_document = AsyncMock(return_value=MagicMock(filename="x.pdf"))
     mem.bulk_insert_chunks = AsyncMock()
     mem.update_document = AsyncMock()
     mem.delete_chunks_for_document = AsyncMock()

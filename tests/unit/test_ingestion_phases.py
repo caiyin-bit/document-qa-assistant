@@ -28,6 +28,7 @@ async def test_phase_sequence_for_single_page_with_chunks():
     """One page with content should write: loading → extracting → embedding
     → inserting → (terminal None when status flips to ready)."""
     mem = MagicMock()
+    mem.get_document = AsyncMock(return_value=MagicMock(filename="x.pdf"))
     mem.bulk_insert_chunks = AsyncMock()
     mem.update_document = AsyncMock()
     mem.delete_chunks_for_document = AsyncMock()
@@ -52,6 +53,11 @@ async def test_phase_sequence_for_single_page_with_chunks():
         None,  # cleared when status → ready
     ], f"unexpected phase sequence: {phases}"
 
+    # Inserted chunk content should be prefixed with `《filename》第N页：` so
+    # the embedding picks up filename + page metadata.
+    inserted_rows = mem.bulk_insert_chunks.await_args.args[1]
+    assert inserted_rows[0]["content"].startswith("《x.pdf》第1页：")
+
 
 @pytest.mark.asyncio
 async def test_phase_loading_set_before_first_page():
@@ -59,6 +65,7 @@ async def test_phase_loading_set_before_first_page():
     because BGE model lazy-load happens on first embed_batch call. Setting
     it up-front prevents the UI from looking frozen while the model loads."""
     mem = MagicMock()
+    mem.get_document = AsyncMock(return_value=MagicMock(filename="x.pdf"))
     mem.bulk_insert_chunks = AsyncMock()
     mem.update_document = AsyncMock()
     mem.delete_chunks_for_document = AsyncMock()
@@ -85,6 +92,7 @@ async def test_failure_path_clears_phase():
     """When ingestion fails (scanned PDF / 0 chunks), progress_phase must be
     reset to None so the failed UI doesn't keep showing a stale phase."""
     mem = MagicMock()
+    mem.get_document = AsyncMock(return_value=MagicMock(filename="x.pdf"))
     mem.bulk_insert_chunks = AsyncMock()
     mem.update_document = AsyncMock()
     mem.delete_chunks_for_document = AsyncMock()

@@ -5,7 +5,7 @@ Contains:
 - encode_sse: serialize one StreamEvent to SSE wire bytes
 - to_sse_bytes: async-gen adapter that emits bytes to StreamingResponse; its
   finally explicitly closes the upstream engine generator so transaction
-  rollback and KimiClient stream.close run promptly (not via GC).
+  rollback and GeminiClient stream.close run promptly (not via GC).
 - SSEStreamingResponse: Starlette StreamingResponse subclass that explicitly
   aclose's its body_iterator in stream_response's finally — the ONLY way
   to guarantee deterministic cleanup on client disconnect in Starlette 1.x.
@@ -101,7 +101,7 @@ class SSEStreamingResponse(StreamingResponse):
     We need the engine generator (via to_sse_bytes) to receive GeneratorExit
     at its yield promptly on disconnect so:
       (a) MemoryService.transaction() rollback runs, and
-      (b) KimiClient.chat_stream's try/finally stream.close() fires.
+      (b) GeminiClient.chat_stream's try/finally stream.close() fires.
 
     This subclass guarantees that by explicitly aclose'ing the body_iterator
     in stream_response's finally block.

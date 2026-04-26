@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { STREAM_URL } from "./api";
 import { parseSSE, type ServerEvent } from "./sse-stream";
 import type { Message } from "./types";
@@ -9,6 +9,9 @@ export function useChatStream(sessionId: string | null) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Held across renders so the Stop button can abort the in-flight fetch
+  // on the same iteration without re-creating it on every send().
+  const abortRef = useRef<AbortController | null>(null);
 
   const send = useCallback(
     async (text: string) => {
@@ -29,12 +32,24 @@ export function useChatStream(sessionId: string | null) {
       setStreaming(true);
       setError(null);
 
+      const ctrl = new AbortController();
+      abortRef.current = ctrl;
       try {
         const r = await fetch(STREAM_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ session_id: sessionId, message: text }),
+          signal: ctrl.signal,
         });
+        if (r.status === 404) {
+          // Stale session id (e.g. session was deleted server-side).
+          // Drop it from the URL so the user lands on the empty state
+          // and can create a fresh session.
+          if (typeof window !== "undefined") {
+            window.location.assign("/");
+          }
+          throw new Error("会话不存在或已过期，请新建会话");
+        }
         if (!r.ok || !r.body) throw new Error(`HTTP ${r.status}`);
         for await (const ev of parseSSE(r.body)) {
           if (ev.type === "error") {
@@ -43,15 +58,36 @@ export function useChatStream(sessionId: string | null) {
           setMessages((prev) => applyEvent(prev, ev));
         }
       } catch (e) {
-        setError(e instanceof Error ? e.message : "网络出错");
+        // Distinguish user-initiated abort from real network errors so
+        // the chat doesn't render "出错了：AbortError" on a clean stop.
+        if ((e as Error)?.name === "AbortError") {
+          setMessages((prev) => {
+            const copy = [...prev];
+            const last = copy.length - 1;
+            if (last >= 0 && copy[last].role === "assistant") {
+              copy[last] = {
+                ...copy[last],
+                content: copy[last].content + "\n\n_（已停止生成）_",
+              };
+            }
+            return copy;
+          });
+        } else {
+          setError(e instanceof Error ? e.message : "网络出错");
+        }
       } finally {
+        abortRef.current = null;
         setStreaming(false);
       }
     },
     [sessionId, streaming],
   );
 
-  return { messages, streaming, error, send, setMessages };
+  const stop = useCallback(() => {
+    abortRef.current?.abort();
+  }, []);
+
+  return { messages, streaming, error, send, stop, setMessages };
 }
 
 function applyEvent(prev: Message[], ev: ServerEvent): Message[] {

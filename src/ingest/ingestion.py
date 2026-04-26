@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Callable, Iterable
 
 from src.ingest.pdf_parser import PdfValidationError
+from src.ingest.zh_normalize import to_simplified
 from src.models.schemas import DocumentStatus
 
 log = logging.getLogger(__name__)
@@ -60,17 +61,28 @@ async def _ingest_document(
         # — can take 15-30s on first ingestion).
         await mem.update_document(doc_id, progress_phase=PHASE_LOADING)
 
+        # Resolve filename so chunks can carry a `《file》第N页：` prefix.
+        # Embedding the prefix lets queries like "腾讯报告里…" or "第三页讲了什么"
+        # match on filename + page metadata, not just body text.
+        doc_row = await mem.get_document(doc_id)
+        filename = doc_row.filename if doc_row is not None else ""
+
         for page_no, text in iter_pages(path):
             await mem.update_document(
                 doc_id,
                 progress_phase=PHASE_EXTRACTING,
                 progress_page=page_no,
             )
+            # Normalise traditional → simplified at ingestion so both pg_trgm
+            # (char-level trigrams) and BGE cosine line up with simplified
+            # queries. See src/ingest/zh_normalize.py.
+            text = to_simplified(text)
             chunks = chunker(text, page_no=page_no)
             if chunks:
+                prefix = f"《{to_simplified(filename)}》第{page_no}页：\n" if filename else ""
                 # Normalize: support both dict and Chunk dataclass
                 contents = [
-                    c["content"] if isinstance(c, dict) else c.content
+                    prefix + (c["content"] if isinstance(c, dict) else c.content)
                     for c in chunks
                 ]
                 await mem.update_document(doc_id, progress_phase=PHASE_EMBEDDING)
@@ -78,8 +90,7 @@ async def _ingest_document(
 
                 await mem.update_document(doc_id, progress_phase=PHASE_INSERTING)
                 rows = []
-                for i, (c, emb) in enumerate(zip(chunks, embeddings)):
-                    content = c["content"] if isinstance(c, dict) else c.content
+                for i, (content, emb) in enumerate(zip(contents, embeddings)):
                     rows.append({
                         "page_no": page_no,
                         "chunk_idx": chunk_idx + i,

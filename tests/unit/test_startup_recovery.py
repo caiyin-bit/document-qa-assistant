@@ -3,7 +3,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 from src.models.schemas import DocumentStatus
 
-os.environ.setdefault("MOONSHOT_API_KEY", "dummy")
+os.environ.setdefault("GEMINI_API_KEY", "dummy")
 os.environ.setdefault("APP_USER_ID", "00000000-0000-0000-0000-000000000001")
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/docqa")
 os.environ.setdefault("REDIS_URL", "redis://redis:6379/0")
@@ -116,7 +116,7 @@ async def test_reaper_continues_when_one_enqueue_fails(db_session):
 @pytest.mark.asyncio
 async def test_lifespan_creates_and_closes_arq_pool(monkeypatch):
     """Backend startup must create an arq Redis pool; shutdown must close it."""
-    os.environ.setdefault("MOONSHOT_API_KEY", "dummy")
+    os.environ.setdefault("GEMINI_API_KEY", "dummy")
     os.environ.setdefault("APP_USER_ID", "00000000-0000-0000-0000-000000000001")
     os.environ["REDIS_URL"] = "redis://redis:6379/0"
 
@@ -147,7 +147,7 @@ async def test_lifespan_creates_and_closes_arq_pool(monkeypatch):
 @pytest.mark.asyncio
 async def test_shutdown_closes_embedder(stub_arq_pool):
     """FastAPI shutdown event must call embedder.close(wait=False)."""
-    os.environ.setdefault("MOONSHOT_API_KEY", "dummy")
+    os.environ.setdefault("GEMINI_API_KEY", "dummy")
     os.environ.setdefault("APP_USER_ID", "00000000-0000-0000-0000-000000000001")
     from src.main import make_app_default, _production_deps
 

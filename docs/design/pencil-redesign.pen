@@ -1,5 +1,5 @@
 {
-  "version": "2.6",
+  "version": "2.10",
   "children": [
     {
       "type": "frame",
@@ -1341,6 +1341,8 @@
                     {
                       "type": "text",
                       "id": "vIMKE",
+                      "x": 0,
+                      "y": 0,
                       "name": "0",
                       "enabled": false,
                       "fill": "$--foreground",
@@ -1372,6 +1374,8 @@
                     {
                       "type": "text",
                       "id": "qM9xF",
+                      "x": 0,
+                      "y": 0,
                       "name": "0",
                       "enabled": false,
                       "fill": "$--foreground",
@@ -1409,6 +1413,8 @@
                     {
                       "type": "text",
                       "id": "dL6MK",
+                      "x": 0,
+                      "y": 0,
                       "name": "0",
                       "enabled": false,
                       "fill": "$--foreground",
@@ -1478,6 +1484,8 @@
                     {
                       "type": "text",
                       "id": "Hlbwf",
+                      "x": 0,
+                      "y": 0,
                       "name": "0",
                       "enabled": false,
                       "fill": "$--foreground",
@@ -1509,6 +1517,8 @@
                     {
                       "type": "text",
                       "id": "MBOXD",
+                      "x": 0,
+                      "y": 0,
                       "name": "0",
                       "enabled": false,
                       "fill": "$--foreground",
@@ -1546,6 +1556,8 @@
                     {
                       "type": "text",
                       "id": "iEjWl",
+                      "x": 0,
+                      "y": 0,
                       "name": "0",
                       "enabled": false,
                       "fill": "$--foreground",
@@ -2190,8 +2202,8 @@
           "y": 1096,
           "fill": {
             "type": "image",
-            "opacity": 1,
             "enabled": true,
+            "url": "",
             "mode": "fill"
           },
           "name": "Avatar/Image",
@@ -3533,7 +3545,7 @@
                   "type": "ref",
                   "ref": "C3KOZ",
                   "x": 24,
-                  "y": 24.019943701668048,
+                  "y": 24.01994370166805,
                   "width": "fill_container",
                   "descendants": {
                     "NEMHS": {
@@ -4350,9 +4362,11 @@
                     {
                       "type": "frame",
                       "id": "sdtLabel1",
+                      "x": 0,
+                      "y": 0,
                       "name": "Label Text",
                       "enabled": false,
-                      "width": "fill_container",
+                      "width": "fill_container(0)",
                       "fill": {
                         "type": "color",
                         "color": "$--white",
@@ -4525,6 +4539,2448 @@
       "layout": "vertical",
       "gap": 24,
       "padding": 32
+    },
+    {
+      "type": "frame",
+      "id": "NV2a2",
+      "x": 4693,
+      "y": -384,
+      "name": "DocQA Workspace (Dark)",
+      "clip": true,
+      "width": 1440,
+      "height": 900,
+      "fill": "#0A0A0A",
+      "children": [
+        {
+          "type": "frame",
+          "id": "ZfMqX",
+          "name": "SessionsSidebar",
+          "width": 220,
+          "height": "fill_container",
+          "fill": "#0E0E0E",
+          "stroke": {
+            "align": "inside",
+            "thickness": {
+              "right": 1
+            },
+            "fill": "#1A1A1A"
+          },
+          "layout": "vertical",
+          "gap": 6,
+          "padding": 12,
+          "children": [
+            {
+              "type": "frame",
+              "id": "vQcpU",
+              "name": "NewBtn",
+              "width": "fill_container",
+              "height": 36,
+              "fill": "#002FA7",
+              "cornerRadius": 6,
+              "gap": 6,
+              "padding": [
+                0,
+                12
+              ],
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon_font",
+                  "id": "Irqwx",
+                  "width": 14,
+                  "height": 14,
+                  "iconFontName": "plus",
+                  "iconFontFamily": "lucide",
+                  "fill": "#FFFFFF"
+                },
+                {
+                  "type": "text",
+                  "id": "5chyD",
+                  "fill": "#FFFFFF",
+                  "content": "新对话",
+                  "fontFamily": "Geist",
+                  "fontSize": 13,
+                  "fontWeight": "500"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "sBP5v",
+              "fill": "#71717A",
+              "content": "会话 · SESSIONS",
+              "fontFamily": "Geist Mono",
+              "fontSize": 10,
+              "fontWeight": "normal",
+              "letterSpacing": 0.8
+            },
+            {
+              "type": "frame",
+              "id": "PD9B9",
+              "name": "SessList",
+              "width": "fill_container",
+              "height": "fill_container",
+              "layout": "vertical",
+              "gap": 2,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "fKQYH",
+                  "name": "SessActive",
+                  "width": "fill_container",
+                  "fill": "#001A4A",
+                  "cornerRadius": 6,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#1E3A8A"
+                  },
+                  "layout": "vertical",
+                  "gap": 3,
+                  "padding": 10,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "QGpnD",
+                      "fill": "#E4E4E7",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "腾讯 2025 年总营收是多少？",
+                      "fontFamily": "Geist",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "zRUcb",
+                      "fill": "#A1A1AA",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "刚刚 · 5 条消息",
+                      "fontFamily": "Geist Mono",
+                      "fontSize": 10,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "5j5kH",
+                  "name": "Sess2",
+                  "width": "fill_container",
+                  "cornerRadius": 6,
+                  "layout": "vertical",
+                  "gap": 3,
+                  "padding": 10,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "IYjRk",
+                      "fill": "#A1A1AA",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "对比阿里和腾讯财报",
+                      "fontFamily": "Geist",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "gySAm",
+                      "fill": "#52525B",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "昨天 · 12 条消息",
+                      "fontFamily": "Geist Mono",
+                      "fontSize": 10,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "IZsoQ",
+                  "name": "Sess3",
+                  "width": "fill_container",
+                  "cornerRadius": 6,
+                  "layout": "vertical",
+                  "gap": 3,
+                  "padding": 10,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "GUEtL",
+                      "fill": "#A1A1AA",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "新对话",
+                      "fontFamily": "Geist",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "BxcNP",
+                      "fill": "#52525B",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "3 天前 · 0 条消息",
+                      "fontFamily": "Geist Mono",
+                      "fontSize": 10,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "yGJA3",
+              "name": "SidebarFooter",
+              "width": "fill_container",
+              "stroke": {
+                "align": "inside",
+                "thickness": {
+                  "top": 1
+                },
+                "fill": "#1F1F1F"
+              },
+              "gap": 6,
+              "padding": [
+                8,
+                4
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "9Ntq4",
+                  "name": "ThemeToggle",
+                  "fill": "#141414",
+                  "cornerRadius": 6,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#1F1F1F"
+                  },
+                  "gap": 6,
+                  "padding": [
+                    6,
+                    10
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "M9zos",
+                      "width": 12,
+                      "height": 12,
+                      "iconFontName": "moon",
+                      "iconFontFamily": "lucide",
+                      "fill": "#93C5FD"
+                    },
+                    {
+                      "type": "text",
+                      "id": "JJ2IN",
+                      "fill": "#93C5FD",
+                      "content": "深色 · DARK",
+                      "fontFamily": "Geist Mono",
+                      "fontSize": 10,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "fMWaT",
+          "name": "DocSidebar",
+          "width": 280,
+          "height": "fill_container",
+          "fill": "#0B0B0B",
+          "stroke": {
+            "align": "inside",
+            "thickness": {
+              "right": 1
+            },
+            "fill": "#1A1A1A"
+          },
+          "layout": "vertical",
+          "children": [
+            {
+              "type": "frame",
+              "id": "cuShE",
+              "name": "DocHeader",
+              "width": "fill_container",
+              "padding": [
+                12,
+                12,
+                4,
+                12
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "uqlyG",
+                  "fill": "#71717A",
+                  "content": "文档 · DOCUMENTS",
+                  "fontFamily": "Geist Mono",
+                  "fontSize": 10,
+                  "fontWeight": "normal",
+                  "letterSpacing": 0.8
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "C3f3K",
+              "name": "DocList",
+              "width": "fill_container",
+              "height": "fill_container",
+              "layout": "vertical",
+              "gap": 8,
+              "padding": [
+                0,
+                12,
+                8,
+                12
+              ],
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "zxpp6",
+                  "name": "DocReady",
+                  "width": "fill_container",
+                  "fill": "#0A0A0A",
+                  "cornerRadius": 6,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#1F1F1F"
+                  },
+                  "layout": "vertical",
+                  "gap": 8,
+                  "padding": 10,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "dkkXl",
+                      "name": "docHead1",
+                      "width": "fill_container",
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "cyiA1",
+                          "name": "pdfBadge1",
+                          "width": 24,
+                          "height": 24,
+                          "fill": "#DC2626",
+                          "cornerRadius": 4,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "f4Uiv",
+                              "fill": "#FFFFFF",
+                              "content": "PDF",
+                              "fontFamily": "Geist Mono",
+                              "fontSize": 8,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "qO2c6",
+                          "name": "docInfo1",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 2,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "IJE5V",
+                              "fill": "#E4E4E7",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "腾讯2025年报.pdf",
+                              "fontFamily": "Geist",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "960I6",
+                              "fill": "#71717A",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "282 页",
+                              "fontFamily": "Geist Mono",
+                              "fontSize": 10,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "35T5I",
+                          "name": "readyPill",
+                          "fill": "#0A2118",
+                          "cornerRadius": 4,
+                          "gap": 4,
+                          "padding": [
+                            3,
+                            8
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "ellipse",
+                              "id": "TRTeO",
+                              "fill": "#22C55E",
+                              "width": 5,
+                              "height": 5
+                            },
+                            {
+                              "type": "text",
+                              "id": "YNh7K",
+                              "fill": "#22C55E",
+                              "content": "READY",
+                              "fontFamily": "Geist Mono",
+                              "fontSize": 9,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "ppsjf",
+                  "name": "DocProc",
+                  "width": "fill_container",
+                  "fill": "#0A0A0A",
+                  "cornerRadius": 6,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#3F2A0E"
+                  },
+                  "layout": "vertical",
+                  "gap": 8,
+                  "padding": 10,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "3APkK",
+                      "name": "docHead2",
+                      "width": "fill_container",
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "jtKPS",
+                          "name": "pdfBadge2",
+                          "width": 24,
+                          "height": 24,
+                          "fill": "#DC2626",
+                          "cornerRadius": 4,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "s1giT",
+                              "fill": "#FFFFFF",
+                              "content": "PDF",
+                              "fontFamily": "Geist Mono",
+                              "fontSize": 8,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "SywUx",
+                          "name": "docInfo2",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 2,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "GmB8j",
+                              "fill": "#E4E4E7",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "中欧基金 2024 年报.pdf",
+                              "fontFamily": "Geist",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "ZEew8",
+                              "fill": "#F59E0B",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "向量化 76 / 152",
+                              "fontFamily": "Geist Mono",
+                              "fontSize": 10,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "hHQ0y",
+                          "name": "procPill",
+                          "fill": "#2A1A02",
+                          "cornerRadius": 4,
+                          "gap": 4,
+                          "padding": [
+                            3,
+                            8
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "ellipse",
+                              "id": "SGpFI",
+                              "fill": "#F59E0B",
+                              "width": 5,
+                              "height": 5
+                            },
+                            {
+                              "type": "text",
+                              "id": "RGmq8",
+                              "fill": "#F59E0B",
+                              "content": "PROC",
+                              "fontFamily": "Geist Mono",
+                              "fontSize": 9,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Yxvja",
+                      "name": "progBar",
+                      "width": "fill_container",
+                      "height": 3,
+                      "fill": "#2A1A02",
+                      "cornerRadius": 2,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "gv7km",
+                          "width": 118,
+                          "height": 3,
+                          "fill": "#F59E0B",
+                          "cornerRadius": 2
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "5ZGQy",
+                  "name": "DocFail",
+                  "width": "fill_container",
+                  "fill": "#0A0A0A",
+                  "cornerRadius": 6,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#3F0E1A"
+                  },
+                  "layout": "vertical",
+                  "gap": 6,
+                  "padding": 10,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "gIFmJ",
+                      "name": "docHead3",
+                      "width": "fill_container",
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "WTp5k",
+                          "name": "pdfBadge3",
+                          "width": 24,
+                          "height": 24,
+                          "fill": "#7F1D1D",
+                          "cornerRadius": 4,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "kVN9a",
+                              "fill": "#FCA5A5",
+                              "content": "PDF",
+                              "fontFamily": "Geist Mono",
+                              "fontSize": 8,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "rgt7J",
+                          "name": "docInfo3",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 2,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "zD22V",
+                              "fill": "#E4E4E7",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "扫描版合同.pdf",
+                              "fontFamily": "Geist",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "w6JFG",
+                              "fill": "#EF4444",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "未提取到文本",
+                              "fontFamily": "Geist Mono",
+                              "fontSize": 10,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "2FDcl",
+                          "name": "failPill",
+                          "fill": "#2A0E11",
+                          "cornerRadius": 4,
+                          "gap": 4,
+                          "padding": [
+                            3,
+                            8
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "ellipse",
+                              "id": "Lz4RZ",
+                              "fill": "#EF4444",
+                              "width": 5,
+                              "height": 5
+                            },
+                            {
+                              "type": "text",
+                              "id": "TxBZB",
+                              "fill": "#EF4444",
+                              "content": "FAILED",
+                              "fontFamily": "Geist Mono",
+                              "fontSize": 9,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "hNJJR",
+              "name": "UploadZoneWrap",
+              "width": "fill_container",
+              "layout": "vertical",
+              "padding": [
+                8,
+                12,
+                12,
+                12
+              ],
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "ZhvgM",
+                  "name": "UploadCard",
+                  "width": "fill_container",
+                  "fill": "#00103D",
+                  "cornerRadius": 8,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#1E3A8A"
+                  },
+                  "layout": "vertical",
+                  "gap": 6,
+                  "padding": [
+                    18,
+                    12
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "AcLcv",
+                      "width": 22,
+                      "height": 22,
+                      "iconFontName": "upload",
+                      "iconFontFamily": "lucide",
+                      "fill": "#6FA1F0"
+                    },
+                    {
+                      "type": "text",
+                      "id": "6Dm4Y",
+                      "fill": "#93C5FD",
+                      "content": "拖入或点击上传 PDF",
+                      "fontFamily": "Geist",
+                      "fontSize": 12,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "text",
+                      "id": "PBAtc",
+                      "fill": "#71717A",
+                      "content": "≤ 20MB · 支持中文",
+                      "fontFamily": "Geist Mono",
+                      "fontSize": 10,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "oSIHh",
+          "name": "ChatArea",
+          "width": "fill_container",
+          "height": "fill_container",
+          "fill": "#0A0A0A",
+          "layout": "vertical",
+          "children": [
+            {
+              "type": "frame",
+              "id": "jZU6j",
+              "name": "MessagesArea",
+              "width": "fill_container",
+              "height": "fill_container",
+              "layout": "vertical",
+              "padding": [
+                24,
+                40
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "WfdhH",
+                  "name": "MessagesInner",
+                  "width": 720,
+                  "layout": "vertical",
+                  "gap": 18,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "VgojE",
+                      "name": "userWrap",
+                      "width": "fill_container",
+                      "justifyContent": "end",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "bu9Fd",
+                          "name": "userBubble",
+                          "fill": "#002FA7",
+                          "cornerRadius": [
+                            16,
+                            16,
+                            4,
+                            16
+                          ],
+                          "padding": [
+                            10,
+                            14
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "ajJfN",
+                              "fill": "#FFFFFF",
+                              "content": "腾讯 2025 年总营收是多少？同比增速？",
+                              "fontFamily": "Geist",
+                              "fontSize": 14,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "8F5At",
+                      "name": "asstWrap",
+                      "width": "fill_container",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "6b0eI",
+                          "name": "AsstBubble",
+                          "width": "fill_container",
+                          "fill": "#141414",
+                          "cornerRadius": [
+                            16,
+                            16,
+                            16,
+                            4
+                          ],
+                          "stroke": {
+                            "align": "inside",
+                            "thickness": 1,
+                            "fill": "#1F1F1F"
+                          },
+                          "layout": "vertical",
+                          "gap": 10,
+                          "padding": 14,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "nVQfp",
+                              "name": "ToolChip",
+                              "fill": "#00103D",
+                              "cornerRadius": 4,
+                              "stroke": {
+                                "align": "inside",
+                                "thickness": 1,
+                                "fill": "#1E3A8A"
+                              },
+                              "gap": 6,
+                              "padding": [
+                                3,
+                                8
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "icon_font",
+                                  "id": "XoQ2m",
+                                  "width": 11,
+                                  "height": 11,
+                                  "iconFontName": "search",
+                                  "iconFontFamily": "lucide",
+                                  "fill": "#6FA1F0"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "bhlc8",
+                                  "fill": "#6FA1F0",
+                                  "content": "search_documents · 8 chunks",
+                                  "fontFamily": "Geist Mono",
+                                  "fontSize": 10,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "text",
+                              "id": "rbRAP",
+                              "fill": "#E4E4E7",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "腾讯 2025 年总营收为人民币 6,605 亿元，同比增长 10.2%。增长主要由网络游戏（1,890 亿元）与金融科技及企业服务（2,134 亿元，同比 +16%）业务驱动。",
+                              "lineHeight": 1.55,
+                              "fontFamily": "Geist",
+                              "fontSize": 14,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "uliJS",
+                              "name": "CitStrip",
+                              "width": "fill_container",
+                              "stroke": {
+                                "align": "inside",
+                                "thickness": {
+                                  "top": 1
+                                },
+                                "fill": "#1F1F1F"
+                              },
+                              "layout": "vertical",
+                              "gap": 6,
+                              "padding": [
+                                8,
+                                0,
+                                0,
+                                0
+                              ],
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "hvzwd",
+                                  "fill": "#A1A1AA",
+                                  "content": "📚 来源 · CITATIONS (2)",
+                                  "fontFamily": "Geist Mono",
+                                  "fontSize": 9,
+                                  "fontWeight": "normal",
+                                  "letterSpacing": 0.8
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "lFFzr",
+                                  "name": "cit1",
+                                  "width": "fill_container",
+                                  "fill": "#0A0A0A",
+                                  "cornerRadius": 6,
+                                  "stroke": {
+                                    "align": "inside",
+                                    "thickness": 1,
+                                    "fill": "#1F1F1F"
+                                  },
+                                  "gap": 8,
+                                  "padding": 8,
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "JlGgm",
+                                      "name": "cb1",
+                                      "width": 24,
+                                      "height": 24,
+                                      "fill": "#DC2626",
+                                      "cornerRadius": 4,
+                                      "justifyContent": "center",
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "6yEdS",
+                                          "fill": "#FFFFFF",
+                                          "content": "PDF",
+                                          "fontFamily": "Geist Mono",
+                                          "fontSize": 8,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "KiFWB",
+                                      "name": "ci1",
+                                      "width": "fill_container",
+                                      "layout": "vertical",
+                                      "gap": 2,
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "9i09n",
+                                          "fill": "#E4E4E7",
+                                          "textGrowth": "fixed-width",
+                                          "width": "fill_container",
+                                          "content": "腾讯2025年报.pdf",
+                                          "fontFamily": "Geist",
+                                          "fontSize": 12,
+                                          "fontWeight": "500"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "U1kJd",
+                                          "fill": "#A1A1AA",
+                                          "textGrowth": "fixed-width",
+                                          "width": "fill_container",
+                                          "content": "2025 年公司实现营业收入人民币 6,605 亿元，同比增长 10.2%……",
+                                          "lineHeight": 1.45,
+                                          "fontFamily": "Geist Mono",
+                                          "fontSize": 10,
+                                          "fontWeight": "normal"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "JWwEq",
+                                      "name": "pb1",
+                                      "fill": "#001A4A",
+                                      "cornerRadius": 4,
+                                      "stroke": {
+                                        "align": "inside",
+                                        "thickness": 1,
+                                        "fill": "#1E3A8A"
+                                      },
+                                      "padding": [
+                                        2,
+                                        8
+                                      ],
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "RMne7",
+                                          "fill": "#93C5FD",
+                                          "content": "p.12",
+                                          "fontFamily": "Geist Mono",
+                                          "fontSize": 10,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "lgsQX",
+                                  "name": "cit2",
+                                  "width": "fill_container",
+                                  "fill": "#0A0A0A",
+                                  "cornerRadius": 6,
+                                  "stroke": {
+                                    "align": "inside",
+                                    "thickness": 1,
+                                    "fill": "#1F1F1F"
+                                  },
+                                  "gap": 8,
+                                  "padding": 8,
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "P7VAK",
+                                      "name": "cb2",
+                                      "width": 24,
+                                      "height": 24,
+                                      "fill": "#DC2626",
+                                      "cornerRadius": 4,
+                                      "justifyContent": "center",
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "PTWrd",
+                                          "fill": "#FFFFFF",
+                                          "content": "PDF",
+                                          "fontFamily": "Geist Mono",
+                                          "fontSize": 8,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "BC2XW",
+                                      "name": "ci2",
+                                      "width": "fill_container",
+                                      "layout": "vertical",
+                                      "gap": 2,
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "sBiwg",
+                                          "fill": "#E4E4E7",
+                                          "textGrowth": "fixed-width",
+                                          "width": "fill_container",
+                                          "content": "腾讯2025年报.pdf",
+                                          "fontFamily": "Geist",
+                                          "fontSize": 12,
+                                          "fontWeight": "500"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "Zytut",
+                                          "fill": "#A1A1AA",
+                                          "textGrowth": "fixed-width",
+                                          "width": "fill_container",
+                                          "content": "金融科技及企业服务收入达到 2,134 亿元，同比增长 16%……",
+                                          "lineHeight": 1.45,
+                                          "fontFamily": "Geist Mono",
+                                          "fontSize": 10,
+                                          "fontWeight": "normal"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "ulTzD",
+                                      "name": "pb2",
+                                      "fill": "#001A4A",
+                                      "cornerRadius": 4,
+                                      "stroke": {
+                                        "align": "inside",
+                                        "thickness": 1,
+                                        "fill": "#1E3A8A"
+                                      },
+                                      "padding": [
+                                        2,
+                                        8
+                                      ],
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "JQ8DS",
+                                          "fill": "#93C5FD",
+                                          "content": "p.45",
+                                          "fontFamily": "Geist Mono",
+                                          "fontSize": 10,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "fs6lW",
+              "name": "InputBar",
+              "width": "fill_container",
+              "stroke": {
+                "align": "inside",
+                "thickness": {
+                  "top": 1
+                },
+                "fill": "#1F1F1F"
+              },
+              "padding": [
+                14,
+                40,
+                18,
+                40
+              ],
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "gTkPA",
+                  "name": "inputWrap",
+                  "width": 720,
+                  "gap": 8,
+                  "alignItems": "end",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "cFPZ5",
+                      "name": "inputBox",
+                      "width": "fill_container",
+                      "fill": "#0F0F0F",
+                      "cornerRadius": 8,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "#1F1F1F"
+                      },
+                      "padding": [
+                        10,
+                        12
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "8UznB",
+                          "fill": "#52525B",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "向文档提问…  Enter 发送 · Shift+Enter 换行",
+                          "fontFamily": "Geist",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "0Q7QZ",
+                      "name": "sendBtn",
+                      "fill": "#002FA7",
+                      "cornerRadius": 8,
+                      "gap": 6,
+                      "padding": [
+                        10,
+                        14
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "K6Pb6",
+                          "width": 13,
+                          "height": 13,
+                          "iconFontName": "send",
+                          "iconFontFamily": "lucide",
+                          "fill": "#FFFFFF"
+                        },
+                        {
+                          "type": "text",
+                          "id": "1z3fL",
+                          "fill": "#FFFFFF",
+                          "content": "发送",
+                          "fontFamily": "Geist",
+                          "fontSize": 13,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "ZPXaF",
+      "x": 6333,
+      "y": -384,
+      "name": "DocQA Workspace (Light)",
+      "clip": true,
+      "width": 1440,
+      "height": 900,
+      "fill": "#FFFFFF",
+      "children": [
+        {
+          "type": "frame",
+          "id": "3tXo4",
+          "name": "SessionsSidebar",
+          "width": 220,
+          "height": "fill_container",
+          "fill": "#FAFAFA",
+          "stroke": {
+            "align": "inside",
+            "thickness": {
+              "right": 1
+            },
+            "fill": "#E4E4E7"
+          },
+          "layout": "vertical",
+          "gap": 6,
+          "padding": 12,
+          "children": [
+            {
+              "type": "frame",
+              "id": "FX5E6",
+              "name": "NewBtn",
+              "width": "fill_container",
+              "height": 36,
+              "fill": "#002FA7",
+              "cornerRadius": 6,
+              "gap": 6,
+              "padding": [
+                0,
+                12
+              ],
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon_font",
+                  "id": "NYmtM",
+                  "width": 14,
+                  "height": 14,
+                  "iconFontName": "plus",
+                  "iconFontFamily": "lucide",
+                  "fill": "#FFFFFF"
+                },
+                {
+                  "type": "text",
+                  "id": "7wPbd",
+                  "fill": "#FFFFFF",
+                  "content": "新对话",
+                  "fontFamily": "Geist",
+                  "fontSize": 13,
+                  "fontWeight": "500"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "zHCAV",
+              "fill": "#71717A",
+              "content": "会话 · SESSIONS",
+              "fontFamily": "Geist Mono",
+              "fontSize": 10,
+              "fontWeight": "normal",
+              "letterSpacing": 0.8
+            },
+            {
+              "type": "frame",
+              "id": "pxnhy",
+              "name": "SessList",
+              "width": "fill_container",
+              "height": "fill_container",
+              "layout": "vertical",
+              "gap": 2,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "xrvga",
+                  "name": "SessActive",
+                  "width": "fill_container",
+                  "fill": "#DBEAFE",
+                  "cornerRadius": 6,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#BFDBFE"
+                  },
+                  "layout": "vertical",
+                  "gap": 3,
+                  "padding": 10,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "kjdM4",
+                      "fill": "#18181B",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "腾讯 2025 年总营收是多少？",
+                      "fontFamily": "Geist",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "2DGHc",
+                      "fill": "#52525B",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "刚刚 · 5 条消息",
+                      "fontFamily": "Geist Mono",
+                      "fontSize": 10,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "e6ahr",
+                  "name": "Sess2",
+                  "width": "fill_container",
+                  "cornerRadius": 6,
+                  "layout": "vertical",
+                  "gap": 3,
+                  "padding": 10,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "yrc55",
+                      "fill": "#52525B",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "对比阿里和腾讯财报",
+                      "fontFamily": "Geist",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "WIiTm",
+                      "fill": "#A1A1AA",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "昨天 · 12 条消息",
+                      "fontFamily": "Geist Mono",
+                      "fontSize": 10,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "6RVIg",
+                  "name": "Sess3",
+                  "width": "fill_container",
+                  "cornerRadius": 6,
+                  "layout": "vertical",
+                  "gap": 3,
+                  "padding": 10,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "bQSmp",
+                      "fill": "#52525B",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "新对话",
+                      "fontFamily": "Geist",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "8uAwT",
+                      "fill": "#A1A1AA",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "3 天前 · 0 条消息",
+                      "fontFamily": "Geist Mono",
+                      "fontSize": 10,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "wG2QZ",
+              "name": "SidebarFooter",
+              "width": "fill_container",
+              "stroke": {
+                "align": "inside",
+                "thickness": {
+                  "top": 1
+                },
+                "fill": "#E4E4E7"
+              },
+              "gap": 6,
+              "padding": [
+                8,
+                4
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "iSaZG",
+                  "name": "ThemeToggle",
+                  "fill": "#F4F4F5",
+                  "cornerRadius": 6,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#E4E4E7"
+                  },
+                  "gap": 6,
+                  "padding": [
+                    6,
+                    10
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "ktEy5",
+                      "width": 12,
+                      "height": 12,
+                      "iconFontName": "sun",
+                      "iconFontFamily": "lucide",
+                      "fill": "#002FA7"
+                    },
+                    {
+                      "type": "text",
+                      "id": "HeKm7",
+                      "fill": "#002FA7",
+                      "content": "浅色 · LIGHT",
+                      "fontFamily": "Geist Mono",
+                      "fontSize": 10,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "pU696",
+          "name": "DocSidebar",
+          "width": 280,
+          "height": "fill_container",
+          "fill": "#F8F8F8",
+          "stroke": {
+            "align": "inside",
+            "thickness": {
+              "right": 1
+            },
+            "fill": "#E4E4E7"
+          },
+          "layout": "vertical",
+          "children": [
+            {
+              "type": "frame",
+              "id": "uGa6B",
+              "name": "DocHeader",
+              "width": "fill_container",
+              "padding": [
+                12,
+                12,
+                4,
+                12
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "JNtVZ",
+                  "fill": "#71717A",
+                  "content": "文档 · DOCUMENTS",
+                  "fontFamily": "Geist Mono",
+                  "fontSize": 10,
+                  "fontWeight": "normal",
+                  "letterSpacing": 0.8
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "Ad33X",
+              "name": "DocList",
+              "width": "fill_container",
+              "height": "fill_container",
+              "layout": "vertical",
+              "gap": 8,
+              "padding": [
+                0,
+                12,
+                8,
+                12
+              ],
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "2nqRl",
+                  "name": "DocReady",
+                  "width": "fill_container",
+                  "fill": "#FFFFFF",
+                  "cornerRadius": 6,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#E4E4E7"
+                  },
+                  "layout": "vertical",
+                  "gap": 8,
+                  "padding": 10,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "yt3Oc",
+                      "name": "docHead1",
+                      "width": "fill_container",
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "Blrzi",
+                          "name": "pdfBadge1",
+                          "width": 24,
+                          "height": 24,
+                          "fill": "#DC2626",
+                          "cornerRadius": 4,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "WrzoH",
+                              "fill": "#FFFFFF",
+                              "content": "PDF",
+                              "fontFamily": "Geist Mono",
+                              "fontSize": 8,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "JpoGL",
+                          "name": "docInfo1",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 2,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "V2XwB",
+                              "fill": "#18181B",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "腾讯2025年报.pdf",
+                              "fontFamily": "Geist",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "BOjCu",
+                              "fill": "#71717A",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "282 页",
+                              "fontFamily": "Geist Mono",
+                              "fontSize": 10,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "91ajv",
+                          "name": "readyPill",
+                          "fill": "#DCFCE7",
+                          "cornerRadius": 4,
+                          "gap": 4,
+                          "padding": [
+                            3,
+                            8
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "ellipse",
+                              "id": "2t7CB",
+                              "fill": "#22C55E",
+                              "width": 5,
+                              "height": 5
+                            },
+                            {
+                              "type": "text",
+                              "id": "BmiKe",
+                              "fill": "#16A34A",
+                              "content": "READY",
+                              "fontFamily": "Geist Mono",
+                              "fontSize": 9,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "v3XHj",
+                  "name": "DocProc",
+                  "width": "fill_container",
+                  "fill": "#FFFFFF",
+                  "cornerRadius": 6,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#FCD34D"
+                  },
+                  "layout": "vertical",
+                  "gap": 8,
+                  "padding": 10,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "btjRu",
+                      "name": "docHead2",
+                      "width": "fill_container",
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "nvZYk",
+                          "name": "pdfBadge2",
+                          "width": 24,
+                          "height": 24,
+                          "fill": "#DC2626",
+                          "cornerRadius": 4,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "lrKQX",
+                              "fill": "#FFFFFF",
+                              "content": "PDF",
+                              "fontFamily": "Geist Mono",
+                              "fontSize": 8,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "6bmDa",
+                          "name": "docInfo2",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 2,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "kqERD",
+                              "fill": "#18181B",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "中欧基金 2024 年报.pdf",
+                              "fontFamily": "Geist",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "VDyi0",
+                              "fill": "#B45309",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "向量化 76 / 152",
+                              "fontFamily": "Geist Mono",
+                              "fontSize": 10,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "Hj81F",
+                          "name": "procPill",
+                          "fill": "#FEF3C7",
+                          "cornerRadius": 4,
+                          "gap": 4,
+                          "padding": [
+                            3,
+                            8
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "ellipse",
+                              "id": "uDJHv",
+                              "fill": "#F59E0B",
+                              "width": 5,
+                              "height": 5
+                            },
+                            {
+                              "type": "text",
+                              "id": "G46X0",
+                              "fill": "#B45309",
+                              "content": "PROC",
+                              "fontFamily": "Geist Mono",
+                              "fontSize": 9,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "4CTml",
+                      "name": "progBar",
+                      "width": "fill_container",
+                      "height": 3,
+                      "fill": "#FEF3C7",
+                      "cornerRadius": 2,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "o4u1P",
+                          "width": 118,
+                          "height": 3,
+                          "fill": "#F59E0B",
+                          "cornerRadius": 2
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "qxbLX",
+                  "name": "DocFail",
+                  "width": "fill_container",
+                  "fill": "#FFFFFF",
+                  "cornerRadius": 6,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#FCA5A5"
+                  },
+                  "layout": "vertical",
+                  "gap": 6,
+                  "padding": 10,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "DVsio",
+                      "name": "docHead3",
+                      "width": "fill_container",
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "q9wwR",
+                          "name": "pdfBadge3",
+                          "width": 24,
+                          "height": 24,
+                          "fill": "#DC2626",
+                          "cornerRadius": 4,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "ahafD",
+                              "fill": "#FFFFFF",
+                              "content": "PDF",
+                              "fontFamily": "Geist Mono",
+                              "fontSize": 8,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "fgatJ",
+                          "name": "docInfo3",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 2,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "Va1eF",
+                              "fill": "#18181B",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "扫描版合同.pdf",
+                              "fontFamily": "Geist",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "VXxAg",
+                              "fill": "#DC2626",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "未提取到文本",
+                              "fontFamily": "Geist Mono",
+                              "fontSize": 10,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "5ScHX",
+                          "name": "failPill",
+                          "fill": "#FEE2E2",
+                          "cornerRadius": 4,
+                          "gap": 4,
+                          "padding": [
+                            3,
+                            8
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "ellipse",
+                              "id": "wjQHw",
+                              "fill": "#EF4444",
+                              "width": 5,
+                              "height": 5
+                            },
+                            {
+                              "type": "text",
+                              "id": "K5EEG",
+                              "fill": "#DC2626",
+                              "content": "FAILED",
+                              "fontFamily": "Geist Mono",
+                              "fontSize": 9,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "wDg6S",
+              "name": "UploadZoneWrap",
+              "width": "fill_container",
+              "layout": "vertical",
+              "padding": [
+                8,
+                12,
+                12,
+                12
+              ],
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "B2Wix",
+                  "name": "UploadCard",
+                  "width": "fill_container",
+                  "fill": "#EFF6FF",
+                  "cornerRadius": 8,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#BFDBFE"
+                  },
+                  "layout": "vertical",
+                  "gap": 6,
+                  "padding": [
+                    18,
+                    12
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "Mc2XF",
+                      "width": 22,
+                      "height": 22,
+                      "iconFontName": "upload",
+                      "iconFontFamily": "lucide",
+                      "fill": "#002FA7"
+                    },
+                    {
+                      "type": "text",
+                      "id": "n7bx5",
+                      "fill": "#002FA7",
+                      "content": "拖入或点击上传 PDF",
+                      "fontFamily": "Geist",
+                      "fontSize": 12,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "text",
+                      "id": "i1HH6",
+                      "fill": "#71717A",
+                      "content": "≤ 20MB · 支持中文",
+                      "fontFamily": "Geist Mono",
+                      "fontSize": 10,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "XO61o",
+          "name": "ChatArea",
+          "width": "fill_container",
+          "height": "fill_container",
+          "fill": "#FFFFFF",
+          "layout": "vertical",
+          "children": [
+            {
+              "type": "frame",
+              "id": "7JDvZ",
+              "name": "MessagesArea",
+              "width": "fill_container",
+              "height": "fill_container",
+              "layout": "vertical",
+              "padding": [
+                24,
+                40
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "xib0e",
+                  "name": "MessagesInner",
+                  "width": 720,
+                  "layout": "vertical",
+                  "gap": 18,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "DqTeJ",
+                      "name": "userWrap",
+                      "width": "fill_container",
+                      "justifyContent": "end",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "ynI21",
+                          "name": "userBubble",
+                          "fill": "#002FA7",
+                          "cornerRadius": [
+                            16,
+                            16,
+                            4,
+                            16
+                          ],
+                          "padding": [
+                            10,
+                            14
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "EXVtc",
+                              "fill": "#FFFFFF",
+                              "content": "腾讯 2025 年总营收是多少？同比增速？",
+                              "fontFamily": "Geist",
+                              "fontSize": 14,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "m56IA",
+                      "name": "asstWrap",
+                      "width": "fill_container",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "nd7iW",
+                          "name": "AsstBubble",
+                          "width": "fill_container",
+                          "fill": "#F4F4F5",
+                          "cornerRadius": [
+                            16,
+                            16,
+                            16,
+                            4
+                          ],
+                          "stroke": {
+                            "align": "inside",
+                            "thickness": 1,
+                            "fill": "#E4E4E7"
+                          },
+                          "layout": "vertical",
+                          "gap": 10,
+                          "padding": 14,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "OWRbJ",
+                              "name": "ToolChip",
+                              "fill": "#EFF6FF",
+                              "cornerRadius": 4,
+                              "stroke": {
+                                "align": "inside",
+                                "thickness": 1,
+                                "fill": "#BFDBFE"
+                              },
+                              "gap": 6,
+                              "padding": [
+                                3,
+                                8
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "icon_font",
+                                  "id": "Lj7TQ",
+                                  "width": 11,
+                                  "height": 11,
+                                  "iconFontName": "search",
+                                  "iconFontFamily": "lucide",
+                                  "fill": "#002FA7"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "36FfH",
+                                  "fill": "#002FA7",
+                                  "content": "search_documents · 8 chunks",
+                                  "fontFamily": "Geist Mono",
+                                  "fontSize": 10,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "text",
+                              "id": "pse0S",
+                              "fill": "#18181B",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "腾讯 2025 年总营收为人民币 6,605 亿元，同比增长 10.2%。增长主要由网络游戏（1,890 亿元）与金融科技及企业服务（2,134 亿元，同比 +16%）业务驱动。",
+                              "lineHeight": 1.55,
+                              "fontFamily": "Geist",
+                              "fontSize": 14,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "W3pC7",
+                              "name": "CitStrip",
+                              "width": "fill_container",
+                              "stroke": {
+                                "align": "inside",
+                                "thickness": {
+                                  "top": 1
+                                },
+                                "fill": "#E4E4E7"
+                              },
+                              "layout": "vertical",
+                              "gap": 6,
+                              "padding": [
+                                8,
+                                0,
+                                0,
+                                0
+                              ],
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "s74PY",
+                                  "fill": "#52525B",
+                                  "content": "📚 来源 · CITATIONS (2)",
+                                  "fontFamily": "Geist Mono",
+                                  "fontSize": 9,
+                                  "fontWeight": "normal",
+                                  "letterSpacing": 0.8
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "RQgEj",
+                                  "name": "cit1",
+                                  "width": "fill_container",
+                                  "fill": "#FFFFFF",
+                                  "cornerRadius": 6,
+                                  "stroke": {
+                                    "align": "inside",
+                                    "thickness": 1,
+                                    "fill": "#E4E4E7"
+                                  },
+                                  "gap": 8,
+                                  "padding": 8,
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "9oSjK",
+                                      "name": "cb1",
+                                      "width": 24,
+                                      "height": 24,
+                                      "fill": "#DC2626",
+                                      "cornerRadius": 4,
+                                      "justifyContent": "center",
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "X3ZSh",
+                                          "fill": "#FFFFFF",
+                                          "content": "PDF",
+                                          "fontFamily": "Geist Mono",
+                                          "fontSize": 8,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "3GLg2",
+                                      "name": "ci1",
+                                      "width": "fill_container",
+                                      "layout": "vertical",
+                                      "gap": 2,
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "JbQvu",
+                                          "fill": "#18181B",
+                                          "textGrowth": "fixed-width",
+                                          "width": "fill_container",
+                                          "content": "腾讯2025年报.pdf",
+                                          "fontFamily": "Geist",
+                                          "fontSize": 12,
+                                          "fontWeight": "500"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "m10z7",
+                                          "fill": "#52525B",
+                                          "textGrowth": "fixed-width",
+                                          "width": "fill_container",
+                                          "content": "2025 年公司实现营业收入人民币 6,605 亿元，同比增长 10.2%……",
+                                          "lineHeight": 1.45,
+                                          "fontFamily": "Geist Mono",
+                                          "fontSize": 10,
+                                          "fontWeight": "normal"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "klgSf",
+                                      "name": "pb1",
+                                      "fill": "#DBEAFE",
+                                      "cornerRadius": 4,
+                                      "stroke": {
+                                        "align": "inside",
+                                        "thickness": 1,
+                                        "fill": "#BFDBFE"
+                                      },
+                                      "padding": [
+                                        2,
+                                        8
+                                      ],
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "NK1yE",
+                                          "fill": "#002FA7",
+                                          "content": "p.12",
+                                          "fontFamily": "Geist Mono",
+                                          "fontSize": 10,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "XM8Co",
+                                  "name": "cit2",
+                                  "width": "fill_container",
+                                  "fill": "#FFFFFF",
+                                  "cornerRadius": 6,
+                                  "stroke": {
+                                    "align": "inside",
+                                    "thickness": 1,
+                                    "fill": "#E4E4E7"
+                                  },
+                                  "gap": 8,
+                                  "padding": 8,
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "NUBtd",
+                                      "name": "cb2",
+                                      "width": 24,
+                                      "height": 24,
+                                      "fill": "#DC2626",
+                                      "cornerRadius": 4,
+                                      "justifyContent": "center",
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "BAZtz",
+                                          "fill": "#FFFFFF",
+                                          "content": "PDF",
+                                          "fontFamily": "Geist Mono",
+                                          "fontSize": 8,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "VLw53",
+                                      "name": "ci2",
+                                      "width": "fill_container",
+                                      "layout": "vertical",
+                                      "gap": 2,
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "gdu5R",
+                                          "fill": "#18181B",
+                                          "textGrowth": "fixed-width",
+                                          "width": "fill_container",
+                                          "content": "腾讯2025年报.pdf",
+                                          "fontFamily": "Geist",
+                                          "fontSize": 12,
+                                          "fontWeight": "500"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "z90lw",
+                                          "fill": "#52525B",
+                                          "textGrowth": "fixed-width",
+                                          "width": "fill_container",
+                                          "content": "金融科技及企业服务收入达到 2,134 亿元，同比增长 16%……",
+                                          "lineHeight": 1.45,
+                                          "fontFamily": "Geist Mono",
+                                          "fontSize": 10,
+                                          "fontWeight": "normal"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "tdhV7",
+                                      "name": "pb2",
+                                      "fill": "#DBEAFE",
+                                      "cornerRadius": 4,
+                                      "stroke": {
+                                        "align": "inside",
+                                        "thickness": 1,
+                                        "fill": "#BFDBFE"
+                                      },
+                                      "padding": [
+                                        2,
+                                        8
+                                      ],
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "Udvpr",
+                                          "fill": "#002FA7",
+                                          "content": "p.45",
+                                          "fontFamily": "Geist Mono",
+                                          "fontSize": 10,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "tt7Gm",
+              "name": "InputBar",
+              "width": "fill_container",
+              "stroke": {
+                "align": "inside",
+                "thickness": {
+                  "top": 1
+                },
+                "fill": "#E4E4E7"
+              },
+              "padding": [
+                14,
+                40,
+                18,
+                40
+              ],
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "B6wWV",
+                  "name": "inputWrap",
+                  "width": 720,
+                  "gap": 8,
+                  "alignItems": "end",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "5g33p",
+                      "name": "inputBox",
+                      "width": "fill_container",
+                      "fill": "#FFFFFF",
+                      "cornerRadius": 8,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "#E4E4E7"
+                      },
+                      "padding": [
+                        10,
+                        12
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "FVLcb",
+                          "fill": "#A1A1AA",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "向文档提问…  Enter 发送 · Shift+Enter 换行",
+                          "fontFamily": "Geist",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "wxwl4",
+                      "name": "sendBtn",
+                      "fill": "#002FA7",
+                      "cornerRadius": 8,
+                      "gap": 6,
+                      "padding": [
+                        10,
+                        14
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "YoKap",
+                          "width": 13,
+                          "height": 13,
+                          "iconFontName": "send",
+                          "iconFontFamily": "lucide",
+                          "fill": "#FFFFFF"
+                        },
+                        {
+                          "type": "text",
+                          "id": "k7l7A",
+                          "fill": "#FFFFFF",
+                          "content": "发送",
+                          "fontFamily": "Geist",
+                          "fontSize": 13,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
     }
   ],
   "themes": {

@@ -13,7 +13,7 @@ import sys
 from statistics import mean
 
 # Set required env vars before importing app modules
-os.environ.setdefault("MOONSHOT_API_KEY", "dummy")
+os.environ.setdefault("GEMINI_API_KEY", "dummy")
 os.environ.setdefault("APP_USER_ID", "00000000-0000-0000-0000-000000000001")
 
 RELEVANT_QUERIES = ["总营收", "业务板块", "风险因素"]

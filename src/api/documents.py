@@ -6,6 +6,7 @@ from pathlib import Path
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from pydantic import BaseModel
 from redis.exceptions import RedisError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,7 +23,7 @@ TMP_DIR = UPLOADS_DIR / ".tmp"
 _UPLOAD_MAX_BYTES = 20 * 1024 * 1024
 
 
-def make_documents_router(*, embedder: BgeEmbedder) -> APIRouter:
+def make_documents_router(*, embedder: BgeEmbedder, llm=None) -> APIRouter:
     router = APIRouter()
 
     @router.post("/sessions/{session_id}/documents")
@@ -132,10 +133,109 @@ def make_documents_router(*, embedder: BgeEmbedder) -> APIRouter:
             } for d in rows
         ]
 
+    @router.get("/sessions/{session_id}/documents/library")
+    async def list_user_library(
+        session_id: UUID, db: AsyncSession = Depends(get_db),
+    ):
+        """Lists user's other ready docs not yet attached to this session.
+        Powers the "+ 添加已有文档" dropdown so a brand-new conversation
+        can pull in PDFs uploaded earlier."""
+        mem = MemoryService(db)
+        sess = await mem.get_session(session_id)
+        if sess is None or sess.user_id != DEMO_USER_ID:
+            raise HTTPException(404, "session not found")
+        rows = await mem.list_user_library(
+            DEMO_USER_ID, exclude_session_id=session_id,
+        )
+        return [
+            {
+                "document_id": str(d.id),
+                "filename": d.filename,
+                "page_count": d.page_count,
+                "uploaded_at": d.uploaded_at.isoformat() if d.uploaded_at else None,
+            } for d in rows
+        ]
+
+    class AttachBody(BaseModel):
+        document_ids: list[UUID]
+
+    @router.post("/sessions/{session_id}/documents/attach", status_code=204)
+    async def attach_documents(
+        session_id: UUID, body: AttachBody,
+        db: AsyncSession = Depends(get_db),
+    ):
+        """Attach existing user-owned documents to this session via the
+        session_documents M2M link. Idempotent (ON CONFLICT DO NOTHING)."""
+        mem = MemoryService(db)
+        sess = await mem.get_session(session_id)
+        if sess is None or sess.user_id != DEMO_USER_ID:
+            raise HTTPException(404, "session not found")
+        for did in body.document_ids:
+            doc = await mem.get_document(did)
+            # Defensive ownership check: don't let a session attach docs
+            # that belong to another user.
+            if doc is None or doc.user_id != DEMO_USER_ID:
+                continue
+            await mem.attach_document_to_session(session_id, did)
+
     @router.delete("/sessions/{session_id}/documents/{document_id}", status_code=204)
     async def delete_document(
         session_id: UUID, document_id: UUID, db: AsyncSession = Depends(get_db),
     ):
+        """Detach the doc from this session. Only fully deletes (and
+        unlinks the PDF on disk) if no OTHER session still references
+        it via session_documents — otherwise the doc stays alive in
+        the user's library."""
+        from sqlalchemy import text as _text
+        mem = MemoryService(db)
+        sess = await mem.get_session(session_id)
+        if sess is None or sess.user_id != DEMO_USER_ID:
+            raise HTTPException(404, "session not found")
+        doc = await mem.get_document(document_id)
+        if doc is None or doc.user_id != DEMO_USER_ID:
+            raise HTTPException(404, "document not found")
+        status = doc.status.value if hasattr(doc.status, "value") else doc.status
+        if status == "processing":
+            raise HTTPException(
+                409, "文档正在解析中，请等待完成或解析超时后再删除"
+            )
+
+        await mem.detach_document_from_session(session_id, document_id)
+        # Garbage-collect: if no sessions still reference this doc, fully
+        # delete (cascades chunks) and unlink the PDF from disk.
+        result = await db.execute(
+            _text(
+                "SELECT COUNT(*) FROM session_documents "
+                "WHERE document_id = :did"
+            ),
+            {"did": str(document_id)},
+        )
+        remaining = result.scalar() or 0
+        if remaining == 0:
+            await mem.delete_document(document_id)
+            try:
+                (UPLOADS_DIR / f"{document_id}.pdf").unlink(missing_ok=True)
+            except Exception:
+                log.warning("failed to unlink %s.pdf", document_id)
+
+    @router.get("/sessions/{session_id}/documents/{document_id}/intro")
+    async def get_document_intro(
+        session_id: UUID, document_id: UUID, db: AsyncSession = Depends(get_db),
+    ):
+        """LLM-generated 2-3 sentence summary + 3 suggested follow-up
+        questions for the document. Used by the empty-state of the chat
+        pane to give the user a starting point. Fetches the first ~12
+        chunks (head of doc — usually exec summary / TOC area) so the
+        prompt stays compact.
+
+        No DB cache yet — each call hits the LLM. Frontend caches the
+        result in localStorage keyed by document_id so re-renders don't
+        re-bill.
+        """
+        if llm is None:
+            raise HTTPException(503, "LLM 未配置")
+        from sqlalchemy import text
+        import json
         mem = MemoryService(db)
         sess = await mem.get_session(session_id)
         if sess is None or sess.user_id != DEMO_USER_ID:
@@ -144,16 +244,64 @@ def make_documents_router(*, embedder: BgeEmbedder) -> APIRouter:
         if doc is None or doc.session_id != session_id:
             raise HTTPException(404, "document not found")
         status = doc.status.value if hasattr(doc.status, "value") else doc.status
-        if status == "processing":
-            raise HTTPException(
-                409, "文档正在解析中，请等待完成或解析超时后再删除"
-            )
-
-        await mem.delete_document(document_id)
+        if status != "ready":
+            raise HTTPException(409, "文档尚未解析完成")
+        result = await db.execute(
+            text(
+                "SELECT content FROM document_chunks "
+                "WHERE document_id = :did "
+                "ORDER BY page_no, chunk_idx LIMIT 12"
+            ),
+            {"did": str(document_id)},
+        )
+        head_text = "\n\n".join(r[0] for r in result.all())[:6000]
+        prompt = (
+            "下面是一份 PDF 文档开头部分的摘录。请用 2-3 句话概括这份文档"
+            "讲什么（不要重复文件名），然后给出 3 个最有意义的"
+            "follow-up 问题。严格按 JSON 输出，键名为 summary 和 questions。\n\n"
+            f"{head_text}\n\n"
+            '只输出 JSON：{"summary":"…","questions":["…","…","…"]}'
+        )
         try:
-            (UPLOADS_DIR / f"{document_id}.pdf").unlink(missing_ok=True)
-        except Exception:
-            log.warning("failed to unlink %s.pdf", document_id)
+            resp = await llm.chat(
+                messages=[{"role": "user", "content": prompt}], tools=[],
+            )
+            body = (resp.content or "").strip()
+            # tolerate ```json fences
+            if body.startswith("```"):
+                body = body.strip("`").lstrip("json").strip()
+            data = json.loads(body)
+            return {
+                "summary": str(data.get("summary", "")),
+                "questions": [str(q) for q in (data.get("questions") or [])][:3],
+            }
+        except Exception as e:
+            log.warning("intro generation failed for %s: %s", document_id, e)
+            raise HTTPException(502, "摘要生成失败，请稍后再试")
+
+    @router.get("/sessions/{session_id}/documents/{document_id}/file")
+    async def get_document_file(
+        session_id: UUID, document_id: UUID, db: AsyncSession = Depends(get_db),
+    ):
+        """Serve the original PDF inline so the browser can render it (for
+        the citation-jump preview pane). Validates session ownership +
+        document scope so one user can't fetch another's uploads."""
+        from fastapi.responses import FileResponse
+        mem = MemoryService(db)
+        sess = await mem.get_session(session_id)
+        if sess is None or sess.user_id != DEMO_USER_ID:
+            raise HTTPException(404, "session not found")
+        doc = await mem.get_document(document_id)
+        if doc is None or doc.session_id != session_id:
+            raise HTTPException(404, "document not found")
+        path = UPLOADS_DIR / f"{document_id}.pdf"
+        if not path.exists():
+            raise HTTPException(404, "file missing on disk")
+        return FileResponse(
+            path,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'inline; filename="{doc.filename}"'},
+        )
 
     @router.get("/sessions/{session_id}/documents/{document_id}/progress")
     async def progress_stream(

@@ -9,6 +9,7 @@ Test entrypoint:
 
 from __future__ import annotations
 
+import logging
 import os
 from functools import lru_cache
 
@@ -22,7 +23,8 @@ from src.config import Config, load_config
 from src.core.persona_loader import PersonaLoader
 from src.db.session import make_engine, make_sessionmaker
 from src.embedding.bge_embedder import BgeEmbedder
-from src.llm.kimi_client import KimiClient
+from src.embedding.bge_reranker import BgeReranker
+from src.llm.gemini_client import GeminiClient
 from src.worker.redis_pool import make_redis_settings
 
 
@@ -36,7 +38,7 @@ def create_app(deps: ChatDependencies) -> FastAPI:
         allow_credentials=False,
     )
     app.include_router(make_router(deps))
-    app.include_router(make_documents_router(embedder=deps.embedder))
+    app.include_router(make_documents_router(embedder=deps.embedder, llm=deps.llm))
     return app
 
 
@@ -55,13 +57,29 @@ def _production_deps() -> ChatDependencies:
             "APP_USER_ID env var missing. Run scripts/seed_demo_user.py first."
         )
 
+    # Wire config.app.log_level into the root logger. Without this, all our
+    # log.info() calls in the engine / clients silently disappear because
+    # Python defaults to WARNING.
+    logging.basicConfig(
+        level=cfg.app.log_level.upper(),
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        force=True,  # uvicorn already configured root; force=True overrides
+    )
+
     engine = make_engine(cfg.db.url)
     sm = make_sessionmaker(engine)
     embedder = BgeEmbedder(
         model_path=cfg.embedding.model_path, device=cfg.embedding.device
     )
+    reranker = (
+        BgeReranker(
+            model_path=cfg.reranker.model_path, device=cfg.reranker.device,
+        )
+        if cfg.reranker.enabled
+        else None
+    )
     persona = PersonaLoader(cfg.persona.identity_path, cfg.persona.soul_path)
-    llm = KimiClient.from_config(
+    llm = GeminiClient.from_config(
         base_url=cfg.llm.base_url, api_key=cfg.llm.api_key, model_id=cfg.llm.model_id
     )
     settings = ConvSettings(
@@ -73,7 +91,10 @@ def _production_deps() -> ChatDependencies:
     )
     # MIN_SIMILARITY env var overrides config.yaml default (spec §5)
     min_similarity = float(os.environ.get("MIN_SIMILARITY", 0.35))
-    top_k = int(os.environ.get("TOP_K", 16))
+    # top_k = candidate pool feeding the reranker. Bigger pool = more
+    # chance to surface the right chunk when the query has noisy
+    # synonyms (e.g. report-period boilerplate dominating actual answer).
+    top_k = int(os.environ.get("TOP_K", 24))
     return ChatDependencies(
         sessionmaker=sm,
         persona=persona,
@@ -83,6 +104,8 @@ def _production_deps() -> ChatDependencies:
         settings=settings,
         min_similarity=min_similarity,
         top_k=top_k,
+        reranker=reranker,
+        rerank_top_n=cfg.reranker.top_n,
     )
 
 
@@ -94,6 +117,24 @@ def make_app_default() -> FastAPI:
     app = create_app(deps)
 
     _arq_pool_holder: dict = {}
+
+    @app.on_event("startup")
+    async def _warmup_models():
+        # Lazy-load BGE + reranker on startup so the first user query
+        # doesn't pay 10–15s of cold-start. Errors are logged, not raised:
+        # warmup is best-effort — actual chat would still work, just slow.
+        log = logging.getLogger("startup")
+        try:
+            await deps.embedder.encode_one_async("warmup")
+            log.info("embedder warmup done")
+        except Exception as e:
+            log.warning("embedder warmup failed: %s", e)
+        if deps.reranker is not None:
+            try:
+                await deps.reranker.score_pairs_async("warmup", ["warmup"])
+                log.info("reranker warmup done")
+            except Exception as e:
+                log.warning("reranker warmup failed: %s", e)
 
     @app.on_event("startup")
     async def _create_arq_pool():
@@ -120,5 +161,7 @@ def make_app_default() -> FastAPI:
     @app.on_event("shutdown")
     async def _close_embedder_on_shutdown():
         deps.embedder.close(wait=False)
+        if deps.reranker is not None:
+            deps.reranker.close(wait=False)
 
     return app

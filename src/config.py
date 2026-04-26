@@ -34,6 +34,13 @@ class EmbeddingConfig(BaseModel):
     device: str  # cpu | cuda
 
 
+class RerankerConfig(BaseModel):
+    enabled: bool = True
+    model_path: str = "BAAI/bge-reranker-base"
+    device: str = "cpu"
+    top_n: int = 5  # how many to keep after rerank
+
+
 class MemoryConfig(BaseModel):
     compress_trigger_threshold: int
     compress_keep_recent: int
@@ -60,6 +67,7 @@ class Config(BaseModel):
     db: DbConfig
     llm: LlmConfig
     embedding: EmbeddingConfig
+    reranker: RerankerConfig = RerankerConfig()
     memory: MemoryConfig
     conversation: ConversationConfig
     persona: PersonaConfig
@@ -90,10 +98,10 @@ def load_config(path: Path | str = "config.yaml") -> Config:
 
     # Allow runtime override of LLM tunables (compose + README already advertise
     # these as overridable; before this patch they were silently ignored).
-    base_url_env = os.getenv("MOONSHOT_BASE_URL")
+    base_url_env = os.getenv("GEMINI_BASE_URL")
     if base_url_env:
         cfg.llm.base_url = base_url_env
-    model_id_env = os.getenv("MOONSHOT_MODEL_ID")
+    model_id_env = os.getenv("GEMINI_MODEL_ID")
     if model_id_env:
         cfg.llm.model_id = model_id_env
 

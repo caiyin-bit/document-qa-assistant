@@ -6,16 +6,26 @@ db:
   url: "postgresql+asyncpg://postgres:postgres@localhost:5432/docqa"
 
 llm:
-  provider: siliconflow
-  base_url: "https://api.siliconflow.cn/v1"
-  model_id: "Pro/moonshotai/Kimi-K2.6"   # 硅基流动付费版 slug
+  # OpenAI-compatible gateway. Default points at deeprouter (CN-friendly
+  # relay) using gemini-2.5-flash. The env vars below override
+  # config.yaml at load time so deploys can pick a different model
+  # without a code change.
+  provider: deeprouter
+  base_url: "https://deeprouter.top/v1"
+  model_id: "gemini-2.5-flash"
   mode: instant
-  api_key_env: MOONSHOT_API_KEY
+  api_key_env: GEMINI_API_KEY
 
 embedding:
   model_path: "BAAI/bge-large-zh-v1.5"
   dim: 1024
   device: cpu
+
+reranker:
+  enabled: true
+  model_path: "BAAI/bge-reranker-base"
+  device: cpu
+  top_n: 8   # keep top-N after rerank (out of top_k from hybrid recall)
 
 memory:
   compress_trigger_threshold: 32   # 未压缩 messages 达到此数触发压缩
