@@ -5,15 +5,14 @@ import os
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from redis.exceptions import RedisError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.memory_service import MemoryService, DEMO_USER_ID
-from src.db.session import get_db, _get_default_sm
+from src.db.session import get_db
 from src.embedding.bge_embedder import BgeEmbedder
-from src.ingest.chunker import chunk
-from src.ingest.ingestion import _ingest_with_timeout
-from src.ingest.pdf_parser import iter_pages, open_pdf_meta, PdfValidationError
+from src.ingest.pdf_parser import open_pdf_meta, PdfValidationError
 
 log = logging.getLogger(__name__)
 
@@ -21,19 +20,6 @@ UPLOADS_DIR = Path("data/uploads")
 TMP_DIR = UPLOADS_DIR / ".tmp"
 
 _UPLOAD_MAX_BYTES = 20 * 1024 * 1024
-_INGESTION_TIMEOUT = 300.0
-
-
-async def _run_ingestion(
-    document_id, *, path: Path, sm: async_sessionmaker, embedder, timeout: float
-) -> None:
-    """Launch ingestion in a fresh DB session (separate from the request session)."""
-    async with sm() as db:
-        mem = MemoryService(db)
-        await _ingest_with_timeout(
-            document_id, path=path, mem=mem, embedder=embedder,
-            iter_pages=iter_pages, chunker=chunk, timeout=timeout,
-        )
 
 
 def make_documents_router(*, embedder: BgeEmbedder) -> APIRouter:
@@ -42,6 +28,7 @@ def make_documents_router(*, embedder: BgeEmbedder) -> APIRouter:
     @router.post("/sessions/{session_id}/documents")
     async def upload_document(
         session_id: UUID,
+        request: Request,
         file: UploadFile = File(...),
         db: AsyncSession = Depends(get_db),
     ):
@@ -89,7 +76,8 @@ def make_documents_router(*, embedder: BgeEmbedder) -> APIRouter:
             temp_path.unlink(missing_ok=True)
             raise HTTPException(500, "数据库写入失败")
 
-        # 6) atomic rename
+        # 6) atomic rename — must happen BEFORE enqueue so the worker
+        # sees the file when it picks the job up
         final_path = UPLOADS_DIR / f"{document_id}.pdf"
         try:
             os.replace(temp_path, final_path)
@@ -98,11 +86,25 @@ def make_documents_router(*, embedder: BgeEmbedder) -> APIRouter:
             temp_path.unlink(missing_ok=True)
             raise HTTPException(500, "文件落盘失败")
 
-        # 7) launch background ingestion with its own DB session
-        asyncio.create_task(_run_ingestion(
-            document_id, path=final_path, sm=_get_default_sm(), embedder=embedder,
-            timeout=_INGESTION_TIMEOUT,
-        ))
+        # 7) enqueue ingestion via arq with deterministic _job_id (dedup
+        # with the startup reaper). On Redis failure, roll back disk + db.
+        try:
+            job = await request.app.state.arq_pool.enqueue_job(
+                "ingest_document", str(document_id),
+                _job_id=f"ingest:{document_id}",
+            )
+            result = "queued" if job is not None else "deduped"
+        except RedisError as e:
+            log.error("event=ingest.enqueue doc_id=%s job_id=ingest:%s result=redis_error err=%s",
+                       document_id, document_id, e)
+            try:
+                await mem.delete_document(document_id)
+            except Exception:
+                pass
+            final_path.unlink(missing_ok=True)
+            raise HTTPException(503, "任务队列不可达，请稍后重试")
+        log.info("event=ingest.enqueue doc_id=%s job_id=ingest:%s result=%s",
+                  document_id, document_id, result)
 
         # 8) return
         return {
@@ -144,7 +146,7 @@ def make_documents_router(*, embedder: BgeEmbedder) -> APIRouter:
         status = doc.status.value if hasattr(doc.status, "value") else doc.status
         if status == "processing":
             raise HTTPException(
-                409, "文档正在解析中，请等待完成或解析超时（≤5min）后再删除"
+                409, "文档正在解析中，请等待完成或解析超时后再删除"
             )
 
         await mem.delete_document(document_id)
@@ -163,6 +165,10 @@ def make_documents_router(*, embedder: BgeEmbedder) -> APIRouter:
         async def gen():
             mem = MemoryService(db)
             while True:
+                # Ingestion writes from a different session, so this session's
+                # identity map would otherwise serve a stale Document instance
+                # forever. Expire before re-fetching so each poll hits the DB.
+                db.expire_all()
                 doc = await mem.get_document(document_id)
                 if doc is None:
                     yield f"event: done\ndata: {json.dumps({'status':'failed','error':'gone'})}\n\n"

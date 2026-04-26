@@ -1,9 +1,9 @@
 """Ingestion pipeline. Spec §4 (ingestion + startup recovery)."""
-import asyncio
 import logging
 from pathlib import Path
 from typing import Callable, Iterable
 
+from src.ingest.pdf_parser import PdfValidationError
 from src.models.schemas import DocumentStatus
 
 log = logging.getLogger(__name__)
@@ -11,7 +11,16 @@ log = logging.getLogger(__name__)
 
 async def _mark_failed_and_clean(doc_id, error_message: str, *, mem) -> None:
     """Single failure-handling path: delete partial chunks then mark failed.
-    Used by exception, total_chunks==0, and timeout. Spec §4."""
+    Used by exception, total_chunks==0, and timeout. Spec §4.
+
+    Callers reach us via cancellation or a raised DB error, both of which
+    can leave the session's transaction in an invalid state. Roll back
+    first so the cleanup statements don't trip PendingRollbackError.
+    """
+    try:
+        await mem.db.rollback()
+    except Exception:
+        log.warning("rollback before failure cleanup failed for %s", doc_id)
     await mem.delete_chunks_for_document(doc_id)
     await mem.update_document(
         doc_id,
@@ -65,7 +74,7 @@ async def _ingest_document(
                     for c in chunks
                 ]
                 await mem.update_document(doc_id, progress_phase=PHASE_EMBEDDING)
-                embeddings = embedder.embed_batch(contents)
+                embeddings = await embedder.embed_batch_async(contents)
 
                 await mem.update_document(doc_id, progress_phase=PHASE_INSERTING)
                 rows = []
@@ -92,40 +101,14 @@ async def _ingest_document(
         await mem.update_document(
             doc_id, status=DocumentStatus.ready, progress_phase=None,
         )
-    except Exception as e:
+    except PdfValidationError as e:
+        # Business: PDF content invalid — mark failed and stop. Arq sees
+        # the job as completed normally, no retry.
         await _mark_failed_and_clean(doc_id, str(e), mem=mem)
-        log.exception("ingestion failed for %s", doc_id)
+        log.warning("ingestion business-failed for %s: %s", doc_id, e)
+    # All other exceptions propagate so Arq can count the try and retry
+    # within max_tries.
 
 
-async def _ingest_with_timeout(
-    doc_id, *, path: Path, mem, embedder, iter_pages, chunker,
-    timeout: float = 300.0,
-) -> None:
-    try:
-        await asyncio.wait_for(
-            _ingest_document(doc_id, path=path, mem=mem, embedder=embedder,
-                              iter_pages=iter_pages, chunker=chunker),
-            timeout=timeout,
-        )
-    except asyncio.TimeoutError:
-        await _mark_failed_and_clean(doc_id, "解析超时（>5 分钟）", mem=mem)
 
 
-async def cleanup_stale_documents(mem) -> None:
-    """Startup hook (spec §4 'a'): for each processing doc, delete its chunks
-    then mark failed with '解析中断'.
-    """
-    from sqlalchemy import select
-    from src.models.schemas import Document
-    result = await mem.db.execute(
-        select(Document).where(Document.status == DocumentStatus.processing)
-    )
-    stale = result.scalars().all()
-    for doc in stale:
-        await mem.delete_chunks_for_document(doc.id)
-        await mem.update_document(
-            doc.id,
-            status=DocumentStatus.failed,
-            error_message="解析中断（服务重启），请删除后重新上传",
-            progress_page=0,
-        )

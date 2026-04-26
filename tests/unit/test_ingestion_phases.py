@@ -33,7 +33,7 @@ async def test_phase_sequence_for_single_page_with_chunks():
     mem.delete_chunks_for_document = AsyncMock()
 
     embedder = MagicMock()
-    embedder.embed_batch = MagicMock(return_value=[[0.1] * 1024])
+    embedder.embed_batch_async = AsyncMock(return_value=[[0.1] * 1024])
 
     parser = lambda path: iter([(1, "some content")])
     chunker = lambda text, page_no: [{"content": text, "page_no": page_no}]
@@ -64,7 +64,7 @@ async def test_phase_loading_set_before_first_page():
     mem.delete_chunks_for_document = AsyncMock()
 
     embedder = MagicMock()
-    embedder.embed_batch = MagicMock(return_value=[[0.1] * 1024])
+    embedder.embed_batch_async = AsyncMock(return_value=[[0.1] * 1024])
 
     parser = lambda path: iter([(1, "x")])
     chunker = lambda text, page_no: [{"content": text, "page_no": page_no}]

@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
@@ -9,6 +9,7 @@ from httpx import AsyncClient, ASGITransport
 os.environ.setdefault("MOONSHOT_API_KEY", "dummy")
 os.environ.setdefault("APP_USER_ID", "00000000-0000-0000-0000-000000000001")
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/docqa")
+os.environ.setdefault("REDIS_URL", "redis://redis:6379/0")
 
 from src.main import make_app_default, _production_deps
 
@@ -27,13 +28,17 @@ def reset_lru_caches():
 
 
 @pytest_asyncio.fixture
-async def client(db_session):
+async def client(db_session, monkeypatch):
     """db_session fixture truncates tables before yielding the client."""
+    fake_pool = MagicMock()
+    fake_pool.aclose = AsyncMock()
+    fake_pool.enqueue_job = AsyncMock(return_value=MagicMock(job_id="ingest:test"))
+    monkeypatch.setattr("src.main.create_pool",
+                         AsyncMock(return_value=fake_pool))
+
     app = make_app_default()
     transport = ASGITransport(app=app)
-    # Patch _run_ingestion to a no-op so background tasks don't load the real
-    # BGE model or keep the event loop alive in tests.
-    with patch("src.api.documents._run_ingestion", new=AsyncMock(return_value=None)):
+    async with app.router.lifespan_context(app):
         async with AsyncClient(transport=transport, base_url="http://test") as c:
             yield c
 
