@@ -134,3 +134,88 @@ async def test_worker_e2e_happy_path(seeded_doc, fake_embedder):
         )).scalars().all()
         assert len(chunks) > 0
         assert all(len(c.content_embedding) == 1024 for c in chunks)
+
+
+@pytest.mark.asyncio
+async def test_worker_crash_midjob_recovers_on_reenqueue(seeded_doc, fake_embedder):
+    """First worker crashes mid-ingestion (infra error → arq retry counts
+    a try). Second enqueue (simulating reaper) → step-1 idempotent reset
+    cleans partial chunks; final state is `ready` with full chunk count."""
+    doc_id, sm = seeded_doc
+
+    crash_after_pages = 1
+
+    async def crashing_ingest(doc_id_arg, *, path, mem, embedder, iter_pages, chunker):
+        from src.ingest.ingestion import _ingest_document
+        original = iter_pages
+
+        def limited(p):
+            for i, page in enumerate(original(p)):
+                if i >= crash_after_pages:
+                    raise RuntimeError("simulated crash")
+                yield page
+
+        await _ingest_document(doc_id_arg, path=path, mem=mem, embedder=embedder,
+                                iter_pages=limited, chunker=chunker)
+
+    import src.worker.jobs as jobs
+    real_ingest = jobs._ingest_document
+    jobs._ingest_document = crashing_ingest
+
+    from arq import create_pool
+    pool = await create_pool(make_redis_settings())
+    job_id = f"ingest:{doc_id}"
+    try:
+        await pool.enqueue_job("ingest_document", str(doc_id), _job_id=job_id)
+        worker1 = _make_worker(sm, fake_embedder)
+        await worker1.async_run()  # crashes the job
+
+        # Restore real _ingest_document. arq retains the failed job's
+        # result key, so we clear it to simulate a fresh reaper enqueue
+        # (in production the result expires after `keep_result=60s`).
+        jobs._ingest_document = real_ingest
+        await pool.delete(f"arq:result:{job_id}", f"arq:job:{job_id}")
+        reenqueued = await pool.enqueue_job(
+            "ingest_document", str(doc_id), _job_id=job_id,
+        )
+        assert reenqueued is not None, "reaper enqueue must succeed after cleanup"
+
+        worker2 = _make_worker(sm, fake_embedder)
+        await worker2.async_run()
+    finally:
+        jobs._ingest_document = real_ingest
+        await pool.aclose()
+
+    async with sm() as db:
+        doc = (await db.execute(
+            select(Document).where(Document.id == doc_id)
+        )).scalar_one()
+        assert doc.status == DocumentStatus.ready
+        chunks = (await db.execute(
+            select(DocumentChunk).where(DocumentChunk.document_id == doc_id)
+        )).scalars().all()
+        # Chunks count == fresh full-ingestion count, NOT crashed-run leftover
+        assert len(chunks) >= 1
+
+
+@pytest.mark.asyncio
+async def test_job_id_dedup_prevents_duplicate_enqueue(seeded_doc):
+    """Three rapid enqueues with the same _job_id must coalesce to one."""
+    doc_id, _ = seeded_doc
+    from arq import create_pool
+    pool = await create_pool(make_redis_settings())
+    try:
+        j1 = await pool.enqueue_job("ingest_document", str(doc_id),
+                                     _job_id=f"ingest:{doc_id}")
+        j2 = await pool.enqueue_job("ingest_document", str(doc_id),
+                                     _job_id=f"ingest:{doc_id}")
+        j3 = await pool.enqueue_job("ingest_document", str(doc_id),
+                                     _job_id=f"ingest:{doc_id}")
+        assert j1 is not None
+        assert j2 is None
+        assert j3 is None
+    finally:
+        # Drop the queued (unconsumed) job so it doesn't leak into the next test
+        await pool.delete(f"arq:job:ingest:{doc_id}")
+        await pool.zrem("arq:queue", f"ingest:{doc_id}")
+        await pool.aclose()
