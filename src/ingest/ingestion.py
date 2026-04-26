@@ -11,7 +11,16 @@ log = logging.getLogger(__name__)
 
 async def _mark_failed_and_clean(doc_id, error_message: str, *, mem) -> None:
     """Single failure-handling path: delete partial chunks then mark failed.
-    Used by exception, total_chunks==0, and timeout. Spec §4."""
+    Used by exception, total_chunks==0, and timeout. Spec §4.
+
+    Callers reach us via cancellation or a raised DB error, both of which
+    can leave the session's transaction in an invalid state. Roll back
+    first so the cleanup statements don't trip PendingRollbackError.
+    """
+    try:
+        await mem.db.rollback()
+    except Exception:
+        log.warning("rollback before failure cleanup failed for %s", doc_id)
     await mem.delete_chunks_for_document(doc_id)
     await mem.update_document(
         doc_id,
@@ -108,7 +117,9 @@ async def _ingest_with_timeout(
             timeout=timeout,
         )
     except asyncio.TimeoutError:
-        await _mark_failed_and_clean(doc_id, "解析超时（>5 分钟）", mem=mem)
+        await _mark_failed_and_clean(
+            doc_id, f"解析超时（>{int(timeout/60)} 分钟）", mem=mem,
+        )
 
 
 async def cleanup_stale_documents(mem) -> None:

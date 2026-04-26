@@ -21,7 +21,17 @@ UPLOADS_DIR = Path("data/uploads")
 TMP_DIR = UPLOADS_DIR / ".tmp"
 
 _UPLOAD_MAX_BYTES = 20 * 1024 * 1024
-_INGESTION_TIMEOUT = 300.0
+# Generous total cap. Real-world 200-300 page reports take ~10-15 min on
+# CPU-only BGE; the original 5-min limit cancelled mid-run and surfaced as
+# 解析失败. 30 min safely covers any 20 MB PDF we accept upstream.
+_INGESTION_TIMEOUT = 1800.0
+
+# Strong refs to in-flight ingestion tasks. asyncio's event loop only holds
+# weak references, so a fire-and-forget create_task() can be GC'd mid-run —
+# the coroutine vanishes silently, the wait_for timeout never fires, and the
+# documents row stays stuck in 'processing' forever. Keep the Task alive by
+# adding it to this set and discarding on completion.
+_INGESTION_TASKS: set[asyncio.Task] = set()
 
 
 async def _run_ingestion(
@@ -99,10 +109,12 @@ def make_documents_router(*, embedder: BgeEmbedder) -> APIRouter:
             raise HTTPException(500, "文件落盘失败")
 
         # 7) launch background ingestion with its own DB session
-        asyncio.create_task(_run_ingestion(
+        task = asyncio.create_task(_run_ingestion(
             document_id, path=final_path, sm=_get_default_sm(), embedder=embedder,
             timeout=_INGESTION_TIMEOUT,
         ))
+        _INGESTION_TASKS.add(task)
+        task.add_done_callback(_INGESTION_TASKS.discard)
 
         # 8) return
         return {
@@ -144,7 +156,7 @@ def make_documents_router(*, embedder: BgeEmbedder) -> APIRouter:
         status = doc.status.value if hasattr(doc.status, "value") else doc.status
         if status == "processing":
             raise HTTPException(
-                409, "文档正在解析中，请等待完成或解析超时（≤5min）后再删除"
+                409, "文档正在解析中，请等待完成或解析超时后再删除"
             )
 
         await mem.delete_document(document_id)
@@ -163,6 +175,10 @@ def make_documents_router(*, embedder: BgeEmbedder) -> APIRouter:
         async def gen():
             mem = MemoryService(db)
             while True:
+                # Ingestion writes from a different session, so this session's
+                # identity map would otherwise serve a stale Document instance
+                # forever. Expire before re-fetching so each poll hits the DB.
+                db.expire_all()
                 doc = await mem.get_document(document_id)
                 if doc is None:
                     yield f"event: done\ndata: {json.dumps({'status':'failed','error':'gone'})}\n\n"
