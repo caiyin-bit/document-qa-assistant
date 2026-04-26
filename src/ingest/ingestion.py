@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 from typing import Callable, Iterable
 
+from src.ingest.pdf_parser import PdfValidationError
 from src.models.schemas import DocumentStatus
 
 log = logging.getLogger(__name__)
@@ -101,9 +102,13 @@ async def _ingest_document(
         await mem.update_document(
             doc_id, status=DocumentStatus.ready, progress_phase=None,
         )
-    except Exception as e:
+    except PdfValidationError as e:
+        # Business: PDF content invalid — mark failed and stop. Arq sees
+        # the job as completed normally, no retry.
         await _mark_failed_and_clean(doc_id, str(e), mem=mem)
-        log.exception("ingestion failed for %s", doc_id)
+        log.warning("ingestion business-failed for %s: %s", doc_id, e)
+    # All other exceptions propagate so Arq can count the try and retry
+    # within max_tries.
 
 
 async def _ingest_with_timeout(

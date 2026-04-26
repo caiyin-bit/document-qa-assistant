@@ -8,12 +8,15 @@ from src.models.schemas import DocumentStatus
 
 @pytest.mark.asyncio
 async def test_midrun_exception_cleans_partial_chunks():
+    """Business error during midrun ingestion → mark failed and clean chunks."""
+    from src.ingest.pdf_parser import PdfValidationError
+
     mem = MagicMock()
     mem.bulk_insert_chunks = AsyncMock()
     mem.update_document = AsyncMock()
     mem.delete_chunks_for_document = AsyncMock()
     embedder = MagicMock()
-    embedder.embed_batch_async = AsyncMock(side_effect=[[1.0]*1024, RuntimeError("boom")])
+    embedder.embed_batch_async = AsyncMock(side_effect=[[1.0]*1024, PdfValidationError("boom")])
     parser = lambda path: iter([(1, "p1"), (2, "p2")])
     chunker = lambda text, page_no: [{"content": text, "page_no": page_no}]
 
@@ -73,3 +76,53 @@ async def test_happy_path_marks_ready():
     statuses = [c.kwargs.get("status") for c in mem.update_document.await_args_list
                 if c.kwargs.get("status") is not None]
     assert statuses[-1] == DocumentStatus.ready
+
+
+@pytest.mark.asyncio
+async def test_infra_error_propagates_for_arq_retry():
+    """DB connection errors must NOT be swallowed; Arq retry depends on
+    the job function raising for non-business failures."""
+    from sqlalchemy.exc import OperationalError
+
+    mem = MagicMock()
+    mem.bulk_insert_chunks = AsyncMock(side_effect=OperationalError("conn", {}, Exception("blip")))
+    mem.update_document = AsyncMock()
+    mem.delete_chunks_for_document = AsyncMock()
+    embedder = MagicMock()
+    embedder.embed_batch_async = AsyncMock(return_value=[[0.0]*1024])
+    parser = lambda path: iter([(1, "page text")])
+    chunker = lambda text, page_no: [{"content": text, "page_no": page_no}]
+
+    with pytest.raises(OperationalError):
+        await _ingest_document("doc-id", path=Path("/tmp/x.pdf"),
+                                mem=mem, embedder=embedder,
+                                iter_pages=parser, chunker=chunker)
+
+    # No mark-failed call — Arq should retry
+    for c in mem.update_document.await_args_list:
+        assert c.kwargs.get("status") != DocumentStatus.failed
+    mem.delete_chunks_for_document.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_pdf_validation_error_marks_failed():
+    """PdfValidationError is a business error → mark failed and return."""
+    from src.ingest.pdf_parser import PdfValidationError
+
+    def bad_parser(path):
+        raise PdfValidationError("PDF 损坏")
+        yield  # make it a generator
+    mem = MagicMock()
+    mem.update_document = AsyncMock()
+    mem.delete_chunks_for_document = AsyncMock()
+    embedder = MagicMock()
+    embedder.embed_batch_async = AsyncMock()
+
+    await _ingest_document("doc-id", path=Path("/tmp/x.pdf"),
+                            mem=mem, embedder=embedder,
+                            iter_pages=bad_parser,
+                            chunker=lambda *a, **kw: [])
+
+    last = mem.update_document.await_args_list[-1]
+    assert last.kwargs.get("status") == DocumentStatus.failed
+    assert "损坏" in last.kwargs.get("error_message", "")
