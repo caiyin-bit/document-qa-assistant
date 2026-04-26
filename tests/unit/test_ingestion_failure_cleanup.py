@@ -1,8 +1,7 @@
-import asyncio
 import pytest
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
-from src.ingest.ingestion import _ingest_document, _ingest_with_timeout
+from src.ingest.ingestion import _ingest_document
 from src.models.schemas import DocumentStatus
 
 
@@ -28,31 +27,6 @@ async def test_midrun_exception_cleans_partial_chunks():
     last_call = mem.update_document.await_args_list[-1]
     assert last_call.kwargs.get("status") == DocumentStatus.failed
     assert "boom" in last_call.kwargs.get("error_message", "")
-
-
-@pytest.mark.asyncio
-async def test_timeout_cleans_partial_chunks(monkeypatch):
-    mem = MagicMock()
-    mem.delete_chunks_for_document = AsyncMock()
-    mem.update_document = AsyncMock()
-
-    async def slow(*args, **kwargs):
-        await asyncio.sleep(10)
-
-    # Patch _ingest_document inside ingestion module to be slow
-    import src.ingest.ingestion as ing
-    monkeypatch.setattr(ing, "_ingest_document", slow)
-
-    await _ingest_with_timeout("doc-id", path=Path("/tmp/x.pdf"),
-                                mem=mem, embedder=MagicMock(),
-                                iter_pages=lambda p: iter([]),
-                                chunker=lambda t, n: [],
-                                timeout=0.1)
-
-    mem.delete_chunks_for_document.assert_awaited_once_with("doc-id")
-    last = mem.update_document.await_args_list[-1]
-    assert last.kwargs.get("status") == DocumentStatus.failed
-    assert "超时" in last.kwargs.get("error_message", "")
 
 
 @pytest.mark.asyncio

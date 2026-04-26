@@ -1,5 +1,4 @@
 """Ingestion pipeline. Spec §4 (ingestion + startup recovery)."""
-import asyncio
 import logging
 from pathlib import Path
 from typing import Callable, Iterable
@@ -111,19 +110,5 @@ async def _ingest_document(
     # within max_tries.
 
 
-async def _ingest_with_timeout(
-    doc_id, *, path: Path, mem, embedder, iter_pages, chunker,
-    timeout: float = 300.0,
-) -> None:
-    try:
-        await asyncio.wait_for(
-            _ingest_document(doc_id, path=path, mem=mem, embedder=embedder,
-                              iter_pages=iter_pages, chunker=chunker),
-            timeout=timeout,
-        )
-    except asyncio.TimeoutError:
-        await _mark_failed_and_clean(
-            doc_id, f"解析超时（>{int(timeout/60)} 分钟）", mem=mem,
-        )
 
 
