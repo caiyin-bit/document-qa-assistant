@@ -2,6 +2,7 @@
 no real Redis or Postgres needed (those live in tests/e2e/)."""
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, call
 from uuid import UUID, uuid4
@@ -161,3 +162,78 @@ async def test_ingest_document_happy_path_invokes_ingestion(
     assert captured_args["doc_id"] == DOC_ID
     assert captured_args["path"] == pdf
     assert captured_args["embedder"] is fake_embedder
+
+
+@pytest.mark.asyncio
+async def test_cancel_non_last_try_does_not_touch_db(
+    fake_sm, fake_embedder, uploads_dir, monkeypatch
+):
+    """job_try=1 + cancel during ingestion → re-raise, no fresh-session
+    mark-failed (let next retry's step-1 clean up)."""
+    from src.worker.jobs import ingest_document, INGEST_MAX_TRIES
+    assert INGEST_MAX_TRIES >= 2
+
+    monkeypatch.setattr("src.worker.jobs.MemoryService", lambda db: db._mem)
+    _make_pdf(uploads_dir, DOC_ID)
+
+    async def cancel_mid(doc_id, *, path, mem, **kw):
+        raise asyncio.CancelledError()
+
+    monkeypatch.setattr("src.worker.jobs._ingest_document", cancel_mid)
+
+    ctx = {"sessionmaker": fake_sm, "embedder": fake_embedder, "job_try": 1}
+    with pytest.raises(asyncio.CancelledError):
+        await ingest_document(ctx, str(DOC_ID))
+
+    # Sessions opened: step-2 reset (1) + step-3 run (1) = 2.
+    # The reset session's update is BEFORE cancel; no failed mark anywhere.
+    from src.models.schemas import DocumentStatus
+    all_updates = []
+    for sess in fake_sm.sessions:
+        all_updates.extend(sess._mem.update_document.await_args_list)
+    assert not any(c.kwargs.get("status") == DocumentStatus.failed for c in all_updates)
+
+
+@pytest.mark.asyncio
+async def test_cancel_last_try_marks_failed_in_fresh_session(
+    fake_sm, fake_embedder, uploads_dir, monkeypatch
+):
+    """job_try=INGEST_MAX_TRIES + cancel → fresh session marks failed,
+    deletes partial chunks, error_message written; CancelledError still
+    re-raised so Arq stops retrying."""
+    from src.worker.jobs import ingest_document, INGEST_MAX_TRIES
+    from src.models.schemas import DocumentStatus
+
+    monkeypatch.setattr("src.worker.jobs.MemoryService", lambda db: db._mem)
+    _make_pdf(uploads_dir, DOC_ID)
+
+    async def cancel_mid(doc_id, *, path, mem, **kw):
+        raise asyncio.CancelledError()
+
+    monkeypatch.setattr("src.worker.jobs._ingest_document", cancel_mid)
+
+    ctx = {
+        "sessionmaker": fake_sm, "embedder": fake_embedder,
+        "job_try": INGEST_MAX_TRIES,
+    }
+    with pytest.raises(asyncio.CancelledError):
+        await ingest_document(ctx, str(DOC_ID))
+
+    # 3 sessions: reset, run, fresh-mark-failed
+    assert len(fake_sm.sessions) == 3, [s for s in fake_sm.sessions]
+    fresh_mem = fake_sm.sessions[2]._mem
+    fresh_mem.delete_chunks_for_document.assert_awaited_once_with(DOC_ID)
+    failed_call = next(c for c in fresh_mem.update_document.await_args_list
+                        if c.kwargs.get("status") == DocumentStatus.failed)
+    assert "解析多次" in failed_call.kwargs["error_message"]
+
+
+@pytest.mark.asyncio
+async def test_max_tries_constant_consistent():
+    """The MAX_TRIES used by the wrapper must equal what's registered
+    with arq.worker.func — guards against silent drift if someone bumps
+    one but not the other."""
+    from src.worker.jobs import INGEST_MAX_TRIES
+    from src.worker.main import WorkerSettings
+    fn = WorkerSettings.functions[0]
+    assert fn.max_tries == INGEST_MAX_TRIES, (fn.max_tries, INGEST_MAX_TRIES)

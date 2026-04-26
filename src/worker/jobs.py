@@ -65,11 +65,34 @@ async def ingest_document(ctx, doc_id_str: str) -> None:
         )
     log.info("event=ingest.reset doc_id=%s deleted_chunks=%s", doc_id, deleted)
 
-    # Step 3: run. CancelledError handler is added in Task 7.
-    async with sm() as db:
-        mem = MemoryService(db)
-        await _ingest_document(
-            doc_id, path=path, mem=mem, embedder=embedder,
-            iter_pages=iter_pages, chunker=chunk,
-        )
+    # Step 3: run. CRITICAL ordering: try/except wraps the entire
+    # `async with sm()` block, NOT a try inside it. If cancel fires mid
+    # bulk_insert_chunks the original session has a pending statement;
+    # opening a fresh session inside the still-active `async with` would
+    # race with that session's __aexit__ (rollback/close). Wrapping at
+    # this level lets the original session fully unwind first.
+    try:
+        async with sm() as db:
+            mem = MemoryService(db)
+            await _ingest_document(
+                doc_id, path=path, mem=mem, embedder=embedder,
+                iter_pages=iter_pages, chunker=chunk,
+            )
+    except asyncio.CancelledError:
+        log.warning("event=ingest.cancelled doc_id=%s job_try=%d last_try=%s",
+                     doc_id, job_try, job_try >= INGEST_MAX_TRIES)
+        if job_try >= INGEST_MAX_TRIES:
+            async def _final_mark_failed():
+                async with sm() as fresh:
+                    fmem = MemoryService(fresh)
+                    await _mark_failed_and_clean(
+                        doc_id, "解析多次超时/中断，请删除后重试",
+                        mem=fmem,
+                    )
+            try:
+                await asyncio.shield(asyncio.wait_for(
+                    _final_mark_failed(), timeout=5.0))
+            except Exception:
+                log.warning("final mark-failed for %s also failed", doc_id)
+        raise
     log.info("event=ingest.ready doc_id=%s", doc_id)
