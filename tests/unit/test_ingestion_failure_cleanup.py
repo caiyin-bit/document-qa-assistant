@@ -13,7 +13,7 @@ async def test_midrun_exception_cleans_partial_chunks():
     mem.update_document = AsyncMock()
     mem.delete_chunks_for_document = AsyncMock()
     embedder = MagicMock()
-    embedder.embed_batch = MagicMock(side_effect=[[1.0]*1024, RuntimeError("boom")])
+    embedder.embed_batch_async = AsyncMock(side_effect=[[1.0]*1024, RuntimeError("boom")])
     parser = lambda path: iter([(1, "p1"), (2, "p2")])
     chunker = lambda text, page_no: [{"content": text, "page_no": page_no}]
 
@@ -59,7 +59,7 @@ async def test_happy_path_marks_ready():
     mem.update_document = AsyncMock()
     mem.delete_chunks_for_document = AsyncMock()
     embedder = MagicMock()
-    embedder.embed_batch = MagicMock(return_value=[[0.1]*1024])
+    embedder.embed_batch_async = AsyncMock(return_value=[[0.1]*1024])
     parser = lambda path: iter([(1, "page one")])
     chunker = lambda text, page_no: [{"content": text, "page_no": page_no}]
 

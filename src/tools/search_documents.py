@@ -36,7 +36,7 @@ class SearchDocumentsTool:
         self.top_k = top_k
 
     async def execute(self, *, session_id: UUID, query: str) -> dict:
-        emb = self.embedder.encode_one(query)
+        emb = await self.embedder.encode_one_async(query)
         hits = await self.mem.search_chunks(
             session_id, query_embedding=list(emb),
             top_k=self.top_k, min_similarity=self.min_similarity,

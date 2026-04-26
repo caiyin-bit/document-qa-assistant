@@ -37,7 +37,7 @@ async def test_returns_found_true_when_chunks_above_threshold(db_session):
                                      filename="rep.pdf", page_count=1, byte_size=1)
     embedder = BgeEmbedder()
     text = "腾讯 2025 年总营业收入为 6,605 亿元"
-    emb = embedder.encode_one(text)
+    emb = await embedder.encode_one_async(text)
     await mem.bulk_insert_chunks(doc.id, [
         {"page_no": 12, "chunk_idx": 0, "content": text,
          "embedding": list(emb), "token_count": 20},
@@ -62,7 +62,7 @@ async def test_returns_found_false_when_all_below_threshold(db_session):
     doc = await mem.create_document(user_id=user.id, session_id=sess.id,
                                      filename="rep.pdf", page_count=1, byte_size=1)
     embedder = BgeEmbedder()
-    emb = embedder.encode_one("腾讯财报内容")
+    emb = await embedder.encode_one_async("腾讯财报内容")
     await mem.bulk_insert_chunks(doc.id, [
         {"page_no": 1, "chunk_idx": 0, "content": "腾讯财报内容",
          "embedding": list(emb), "token_count": 10},
@@ -90,7 +90,7 @@ async def test_isolation_between_sessions(db_session):
     for sess in [s1, s2]:
         doc = await mem.create_document(user_id=user.id, session_id=sess.id,
                                          filename="x.pdf", page_count=1, byte_size=1)
-        emb = embedder.encode_one(f"内容 {sess.id}")
+        emb = await embedder.encode_one_async(f"内容 {sess.id}")
         await mem.bulk_insert_chunks(doc.id, [
             {"page_no": 1, "chunk_idx": 0, "content": f"内容 {sess.id}",
              "embedding": list(emb), "token_count": 5},

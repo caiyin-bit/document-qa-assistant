@@ -74,7 +74,7 @@ async def _ingest_document(
                     for c in chunks
                 ]
                 await mem.update_document(doc_id, progress_phase=PHASE_EMBEDDING)
-                embeddings = embedder.embed_batch(contents)
+                embeddings = await embedder.embed_batch_async(contents)
 
                 await mem.update_document(doc_id, progress_phase=PHASE_INSERTING)
                 rows = []
