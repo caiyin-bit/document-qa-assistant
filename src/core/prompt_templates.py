@@ -88,6 +88,11 @@ _STRUCTURED_OUTPUT_GUIDE = """
   - `treemap`：多层占比 → `{"vizType":"treemap","title":"按区域+国家收入","groupby":["region","country"],"metric":"v","data":[{"region":"亚太","country":"中国","v":4500},...]}`
   - `sunburst`：多层环形占比（同 treemap，更紧凑）→ `{"vizType":"sunburst","title":"...","groupby":["region","country"],"metric":"v","data":[...]}`
   - `radar`：多维度对比（每个 metric 一根轴）→ `{"vizType":"radar","title":"板块多维评分","metrics":["growth","margin","share"],"groupby":"segment","data":[{"segment":"增值","growth":12,"margin":58,"share":49},{"segment":"营销","growth":18,"margin":56,"share":19},...]}`
+  - `boxplot`：箱线图（多观测值的分布）→ `{"vizType":"boxplot","title":"...","groupby":"category","metric":"value","data":[{"category":"A","value":12},{"category":"A","value":15},{"category":"B","value":8},...]}`
+  - `histogram`：直方图（数据集分箱）→ `{"vizType":"histogram","title":"...","metric":"value","binCount":10,"data":[{"value":12.3},{"value":15.6},...]}`
+  - `step`：阶梯折线（状态变化时序）→ `{"vizType":"step","title":"...","xAxis":"date","metrics":["count"],"data":[{"date":"2024-Q4","count":110558},{"date":"2025-Q4","count":115849}]}`
+  - `tree`：层级树（节点-连线）→ `{"vizType":"tree","title":"...","groupby":["level1","level2"],"metric":"value","layout":"orthogonal","orient":"LR","data":[{"level1":"腾讯控股","level2":"微信","value":1},{"level1":"腾讯控股","level2":"游戏","value":1},...]}`
+  - `graph`：网络图（节点+边）→ `{"vizType":"graph","title":"...","source":"src","target":"tgt","metric":"weight","layout":"force","data":[{"src":"腾讯","tgt":"美团","weight":17},{"src":"腾讯","tgt":"京东","weight":15},...]}`
 - 图表代码块必须是合法 JSON（双引号），数据数值保留报告中的真实数字（不要造假），单位通过 title 或 subheader 显示
 - 原则：图表是补充而不是替代，必要时图表前后还是要有简短的文字说明
 """
