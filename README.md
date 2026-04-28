@@ -105,20 +105,25 @@ cookie-based session(starlette SessionMiddleware,签名 cookie / HttpOnly / Same
 
 ## 答案格式(图表 / 表格)
 
-LLM 在合适时机可以**直接在回答里嵌入图表**,前端基于 [xviz](https://github.com/caiyin-bit/xviz)(Apache Superset 图表引擎的独立版,内核 ECharts)渲染,共 10 种类型:
+LLM 在合适时机可以**直接在回答里嵌入图表**,前端基于 [xviz](https://github.com/caiyin-bit/xviz)(Apache Superset 图表引擎的独立版,内核 ECharts)渲染,**v0.5.0 共 19 种类型**:
 
 | 类型 | 适用场景 |
 |---|---|
 | `pie` / `donut` | 占比(各业务板块收入占比) |
 | `bar` | 分组对比、同比 |
-| `line` | 趋势(近 5 年营收) |
+| `line` / `step` | 趋势(近 5 年营收 / 阶梯状态变化) |
 | `big-number` | KPI 卡片(大数 + sparkline + 同比) |
-| `funnel` | 转化漏斗(总收入→毛利→运营利润→净利润) |
+| **`waterfall`** | **利润分解(总收入→成本→费用→净利润),比 funnel 更专业** |
+| `funnel` | 转化漏斗(递减) |
 | `sankey` | 流向(总收入→各业务板块) |
 | `heatmap` | 二维矩阵(各板块 × 各季度同比) |
+| `treemap` / `sunburst` | 多层级占比(地区 × 国家;rectangle 或 ring 形式) |
+| `radar` | 多维度对比(板块在 增长率/毛利率/份额 多轴上的画像) |
+| `boxplot` / `histogram` | 分布(多季度数据的离散程度 / 分箱) |
 | `table` | 多行多列数据 |
 | `gauge` | 单值仪表 |
 | `scatter` | 散点(相关性) |
+| `tree` / `graph` | 层级树 / 关系网络 |
 
 **LLM 输出协议:** system prompt 教 LLM 在答案中插入 ```` ```chart ```` 代码块,JSON 形如:
 ```json
@@ -134,8 +139,11 @@ LLM 在合适时机可以**直接在回答里嵌入图表**,前端基于 [xviz](
 | "对比 2024 vs 2025 各板块收入" | 双 series 柱状图 |
 | "用折线图展示近 5 年总收入" | 单 series 平滑折线 + 渐变填充 |
 | "用 KPI 卡片展示 2025 总收入,带同比" | BigNumber + sparkline + +12.7% delta |
-| "用漏斗图展示从总收入到净利润" | 4 层倒梯形 |
+| "用瀑布图展示从总收入到净利润的逐项扣减" | **Waterfall**:绿色为正、红色为负、终点 Total 条 |
+| "用漏斗图展示从总收入到净利润" | 4 层倒梯形(等价但 Waterfall 更细) |
 | "用 Sankey 图展示总收入流向" | 流向带 |
+| "用 Radar 图对比各板块的增长率/毛利率/份额" | 多轴雷达图 |
+| "用 Treemap 展示按业务板块和地区的收入" | 多层矩形拼贴 |
 
 **单点事实(如"总收入是多少")模型不会强加图表,直接给文字答案 + 引用页码。**
 

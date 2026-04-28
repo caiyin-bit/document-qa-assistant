@@ -66,10 +66,14 @@ _STRUCTURED_OUTPUT_GUIDE = """
   - `pie`：占比 → `{"vizType":"pie","title":"...","groupby":["category"],"metric":"value","donut":true,"data":[{"category":"A","value":120},...]}`
   - `bar`：分组对比/同比 → `{"vizType":"bar","title":"...","xAxis":"name","metrics":["v2024","v2025"],"data":[{"name":"增值服务","v2024":313,"v2025":369},...]}`
   - `line`：趋势 → `{"vizType":"line","title":"...","xAxis":"year","metrics":["revenue"],"smooth":true,"area":true,"data":[{"year":"2021","revenue":560},...]}`
-  - `funnel`：漏斗 → `{"vizType":"funnel","title":"利润漏斗","groupby":["stage"],"metric":"value","data":[{"stage":"营收","value":7517},{"stage":"毛利","value":4223},{"stage":"运营利润","value":2334},{"stage":"净利润","value":1947}]}`
+  - `waterfall`：累计涨跌（**财报利润分解首选**，比 funnel 更专业）→ `{"vizType":"waterfall","title":"2025 利润分解","groupby":"stage","metric":"delta","showTotal":true,"totalLabel":"净利润","data":[{"stage":"总收入","delta":7517},{"stage":"-成本","delta":-3294},{"stage":"-销售/管理费用","delta":-1778},{"stage":"-财务/税","delta":-498}]}`
+  - `funnel`：漏斗（递减) → `{"vizType":"funnel","title":"...","groupby":["stage"],"metric":"value","data":[...]}`
   - `big-number`：单 KPI（带同比）→ `{"vizType":"big-number","title":"2025 总收入","metric":"v","subheader":"百万元","trendColumn":"v","trendTimeColumn":"year","compareToPrevious":true,"data":[{"year":2021,"v":560436},{"year":2022,"v":554552},{"year":2023,"v":609015},{"year":2024,"v":660257},{"year":2025,"v":751766}]}`
   - `sankey`：流向 → `{"vizType":"sankey","title":"...","source":"src","target":"tgt","metric":"v","data":[{"src":"总收入","tgt":"增值服务","v":369},...]}`
   - `heatmap`：二维矩阵 → `{"vizType":"heatmap","title":"...","xAxis":"quarter","yAxis":"segment","metric":"yoy","data":[{"quarter":"Q1","segment":"增值","yoy":12},...]}`
+  - `treemap`：多层占比 → `{"vizType":"treemap","title":"按区域+国家收入","groupby":["region","country"],"metric":"v","data":[{"region":"亚太","country":"中国","v":4500},...]}`
+  - `sunburst`：多层环形占比（同 treemap，更紧凑）→ `{"vizType":"sunburst","title":"...","groupby":["region","country"],"metric":"v","data":[...]}`
+  - `radar`：多维度对比（每个 metric 一根轴）→ `{"vizType":"radar","title":"板块多维评分","metrics":["growth","margin","share"],"groupby":"segment","data":[{"segment":"增值","growth":12,"margin":58,"share":49},{"segment":"营销","growth":18,"margin":56,"share":19},...]}`
 - 图表代码块必须是合法 JSON（双引号），数据数值保留报告中的真实数字（不要造假），单位通过 title 或 subheader 显示
 - 原则：图表是补充而不是替代，必要时图表前后还是要有简短的文字说明
 """

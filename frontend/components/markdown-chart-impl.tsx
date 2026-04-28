@@ -10,19 +10,28 @@ import { useEffect, useRef, useState } from "react";
 import {
   BarChart,
   BigNumber,
+  BoxPlot,
   DARK_THEME,
   type DataRecord,
   Funnel,
   Gauge,
+  Graph,
   Heatmap,
+  Histogram,
   LIGHT_THEME,
   LineChart,
   PieChart,
   type QueryData,
+  Radar,
   Sankey,
   Scatter,
+  Step,
+  Sunburst,
   Table,
   type Theme,
+  Tree,
+  Treemap,
+  Waterfall,
 } from "@minimal-viz/core";
 import type { ChartSpec } from "./markdown-chart";
 
@@ -77,6 +86,17 @@ function applyDefaults(form: Record<string, any>): Record<string, any> {
 
   if (t === "funnel" || t === "sankey" || t === "heatmap" || t === "gauge") {
     if (out.showLegend === undefined) out.showLegend = false;
+  }
+
+  if (
+    t === "treemap" || t === "sunburst" || t === "waterfall" ||
+    t === "tree" || t === "graph" || t === "histogram" || t === "boxplot"
+  ) {
+    if (out.showLegend === undefined) out.showLegend = false;
+  }
+
+  if (t === "radar" || t === "step") {
+    if (out.legendOrientation === undefined) out.legendOrientation = "bottom";
   }
 
   return out;
@@ -155,6 +175,24 @@ export function ChartLoader({ spec, themeName }: Props) {
         return <Funnel {...common} formData={formData as never} />;
       case "gauge":
         return <Gauge {...common} formData={formData as never} />;
+      case "boxplot":
+        return <BoxPlot {...common} formData={formData as never} />;
+      case "histogram":
+        return <Histogram {...common} formData={formData as never} />;
+      case "treemap":
+        return <Treemap {...common} formData={formData as never} />;
+      case "sunburst":
+        return <Sunburst {...common} formData={formData as never} />;
+      case "radar":
+        return <Radar {...common} formData={formData as never} />;
+      case "waterfall":
+        return <Waterfall {...common} formData={formData as never} />;
+      case "step":
+        return <Step {...common} formData={formData as never} />;
+      case "tree":
+        return <Tree {...common} formData={formData as never} />;
+      case "graph":
+        return <Graph {...common} formData={formData as never} />;
       default:
         return (
           <div
