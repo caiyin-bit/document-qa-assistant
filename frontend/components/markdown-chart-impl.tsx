@@ -6,6 +6,7 @@
  * why MarkdownChart wraps this in React.lazy.
  */
 
+import { useEffect, useRef, useState } from "react";
 import {
   BarChart,
   BigNumber,
@@ -54,7 +55,15 @@ function applyDefaults(form: Record<string, any>): Record<string, any> {
   const t = out.vizType;
 
   if (t === "pie") {
+    // Outer slice labels (the leader-line labels around the donut) are
+    // already identification; the top legend duplicates them and
+    // collides with the labels. Hide unless LLM asks otherwise.
+    if (out.showLegend === undefined) out.showLegend = false;
     if (out.legendOrientation === undefined) out.legendOrientation = "bottom";
+    // Default outer labels on (already xviz default but make explicit
+    // so removing legend doesn't lose slice identification).
+    if (out.showLabels === undefined) out.showLabels = true;
+    if (out.labelsOutside === undefined) out.labelsOutside = true;
   }
 
   if (t === "bar" || t === "line") {
@@ -75,6 +84,23 @@ function applyDefaults(form: Record<string, any>): Record<string, any> {
 
 export function ChartLoader({ spec, themeName }: Props) {
   const theme: Theme = themeName === "dark" ? DARK_THEME : LIGHT_THEME;
+  // xviz needs explicit width/height numbers; observe the parent so the
+  // chart resizes to fit the bubble (which is max-w-[80%] of viewport).
+  // Initial render uses 0 → invisible until observer fires (~1 frame).
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const apply = () => {
+      const w = el.clientWidth;
+      if (w > 0) setWidth(w);
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   // Coerce raw rows to DataRecord (string|number|boolean|null values).
   // The chart libs are strict about the union; for now we trust the LLM
   // to emit primitives and stringify the odd object as a defensive net.
@@ -99,50 +125,59 @@ export function ChartLoader({ spec, themeName }: Props) {
   void _omitTitle;
   const formData = applyDefaults(rawForm);
 
-  // Common props for chart components — width/height + theme + the
-  // chart-specific formData. Each chart picks its own viz type.
   const common = {
-    width: 760,
+    width,
     height: DEFAULT_HEIGHT,
     queriesData,
     theme,
-    // xviz infers viewport from container; fluid width via CSS:
-    style: { width: "100%", maxWidth: "100%" } as React.CSSProperties,
   };
 
-  switch (spec.vizType) {
-    case "pie":
-      return <PieChart {...common} formData={formData as never} />;
-    case "bar":
-      return <BarChart {...common} formData={formData as never} />;
-    case "line":
-      return <LineChart {...common} formData={formData as never} />;
-    case "table":
-      return <Table {...common} formData={formData as never} />;
-    case "big-number":
-      return <BigNumber {...common} formData={formData as never} />;
-    case "scatter":
-      return <Scatter {...common} formData={formData as never} />;
-    case "heatmap":
-      return <Heatmap {...common} formData={formData as never} />;
-    case "sankey":
-      return <Sankey {...common} formData={formData as never} />;
-    case "funnel":
-      return <Funnel {...common} formData={formData as never} />;
-    case "gauge":
-      return <Gauge {...common} formData={formData as never} />;
-    default:
-      return (
-        <div
-          className="rounded-md border px-3 py-2 text-[12px]"
-          style={{
-            backgroundColor: "var(--app-status-warn-bg)",
-            borderColor: "var(--app-status-warn-card-border)",
-            color: "var(--app-status-warn-fg)",
-          }}
-        >
-          未支持的 vizType: {spec.vizType}
-        </div>
-      );
-  }
+  const chart = (() => {
+    if (width === 0) return null; // wait until observer reports a size
+    switch (spec.vizType) {
+      case "pie":
+        return <PieChart {...common} formData={formData as never} />;
+      case "bar":
+        return <BarChart {...common} formData={formData as never} />;
+      case "line":
+        return <LineChart {...common} formData={formData as never} />;
+      case "table":
+        return <Table {...common} formData={formData as never} />;
+      case "big-number":
+        return <BigNumber {...common} formData={formData as never} />;
+      case "scatter":
+        return <Scatter {...common} formData={formData as never} />;
+      case "heatmap":
+        return <Heatmap {...common} formData={formData as never} />;
+      case "sankey":
+        return <Sankey {...common} formData={formData as never} />;
+      case "funnel":
+        return <Funnel {...common} formData={formData as never} />;
+      case "gauge":
+        return <Gauge {...common} formData={formData as never} />;
+      default:
+        return (
+          <div
+            className="rounded-md border px-3 py-2 text-[12px]"
+            style={{
+              backgroundColor: "var(--app-status-warn-bg)",
+              borderColor: "var(--app-status-warn-card-border)",
+              color: "var(--app-status-warn-fg)",
+            }}
+          >
+            未支持的 vizType: {spec.vizType}
+          </div>
+        );
+    }
+  })();
+
+  return (
+    <div
+      ref={containerRef}
+      className="w-full overflow-hidden"
+      style={{ minHeight: DEFAULT_HEIGHT }}
+    >
+      {chart}
+    </div>
+  );
 }
