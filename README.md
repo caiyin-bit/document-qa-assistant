@@ -55,6 +55,14 @@ cookie-based session(starlette SessionMiddleware,签名 cookie / HttpOnly / Same
 | **demo 模式** | `ALLOW_DEMO_LOGIN=true`(默认)且未登录 | 自动 fall back 到 `demo@example.com`,不需要注册;sidebar 底部显示"demo 模式"标签 |
 | **真实账号** | 注册或登录后 | 文档/会话归属当前用户,sidebar 显示真名 + 退出按钮;cookie 失效 → 跳 `/login` |
 
+**默认账号(开箱即登录):**
+
+| email | password |
+|---|---|
+| `demo@example.com` | `demo` |
+
+`scripts/seed_demo_user.py` 在 docker compose 启动时自动跑,确保这个账号一直存在。**生产环境请删除或改密码。**
+
 **注册流程:**
 1. 浏览器打开 [/register](http://localhost:3000/register),输入邮箱 + 密码(≥6 位)+ 可选昵称 → 自动登录 → 跳回主页
 2. sidebar 底部出现真名 + 邮箱 tooltip,点退出按钮即清 cookie
