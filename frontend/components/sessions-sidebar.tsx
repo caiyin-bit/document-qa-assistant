@@ -139,14 +139,11 @@ export function SessionsSidebar({
         </ul>
       </ScrollArea>
       <div
-        className="border-t"
+        className="border-t px-3 py-2"
         style={{ borderColor: "var(--app-border-subtle)" }}
       >
-        {me && (
-          <div
-            className="flex items-center gap-2 border-b px-3 py-2"
-            style={{ borderColor: "var(--app-border-subtle)" }}
-          >
+        {me ? (
+          <div className="flex items-center gap-2">
             <div
               className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold"
               style={{
@@ -173,6 +170,7 @@ export function SessionsSidebar({
                 </div>
               )}
             </div>
+            <ThemeToggle />
             {!me.is_demo && (
               <button
                 onClick={handleLogout}
@@ -185,10 +183,13 @@ export function SessionsSidebar({
               </button>
             )}
           </div>
+        ) : (
+          // No user (e.g. before auth resolves): keep theme accessible
+          // by itself so the row still has a purpose.
+          <div className="flex justify-end">
+            <ThemeToggle />
+          </div>
         )}
-        <div className="px-3 py-2">
-          <ThemeToggle />
-        </div>
       </div>
     </aside>
   );
