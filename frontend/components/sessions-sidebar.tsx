@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Plus, X } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { createSession, deleteSession } from "@/lib/api";
 import type { SessionSummary } from "@/lib/types";
@@ -112,10 +112,17 @@ export function SessionsSidebar({
                   <button
                     onClick={(e) => handleDelete(e, s.session_id)}
                     aria-label="删除会话"
-                    className="absolute right-1.5 top-1.5 rounded p-0.5 opacity-0 transition hover:bg-red-500/10 group-hover:opacity-100"
+                    title="删除会话"
+                    className="absolute right-1.5 top-1.5 rounded p-1 opacity-0 transition hover:opacity-100 group-hover:opacity-100"
                     style={{ color: "var(--app-text-faint)" }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.color = "var(--app-status-err-fg)")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.color = "var(--app-text-faint)")
+                    }
                   >
-                    <X className="h-3 w-3" />
+                    <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
               </li>
