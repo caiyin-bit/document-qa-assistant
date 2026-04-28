@@ -141,9 +141,14 @@ def make_auth_router(*, sessionmaker: async_sessionmaker[AsyncSession]) -> APIRo
         if user is None:
             _clear_session(request)
             raise HTTPException(401, "用户不存在")
+        # is_demo signals "no real session — came in via the
+        # ALLOW_DEMO_LOGIN fallback". A user who explicitly logged in
+        # with demo's credentials still has session["user_id"] set, so
+        # we look at the session, not at which user we landed on.
+        is_demo = request.session.get("user_id") is None
         return MeResponse(
             user_id=user.id, email=user.email, name=user.name,
-            is_demo=(user.id == DEMO_USER_ID),
+            is_demo=is_demo,
         )
 
     return router
