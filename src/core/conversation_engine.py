@@ -85,6 +85,9 @@ class ConversationEngine:
         final_text_buf = ""
 
         loop_finished_with_stop = False
+        tool_call_count = 0
+        nudged_for_premature_no_match = False
+        no_match_text = FIXED_RESPONSES["NO_MATCH"]
         for _iter in range(self.max_tool_iterations):
             _ti = _t.monotonic()
             log.info("chat.iter=%d llm_call_start elapsed=%.2fs",
@@ -126,6 +129,38 @@ class ConversationEngine:
                      _iter, finish_reason, len(tool_call_acc), _t.monotonic() - _t0)
 
             if finish_reason == "stop":
+                # Premature-NO_MATCH guard: Gemini sometimes commits to
+                # the canned no-match reply after a single search even
+                # when the question lists multiple sub-items. If we
+                # detect that exact pattern (only 1 tool call so far,
+                # answer is the literal NO_MATCH text), inject a
+                # forcing system message and re-enter the loop ONCE.
+                if (
+                    not nudged_for_premature_no_match
+                    and tool_call_count == 1
+                    and text_buf.strip() == no_match_text
+                ):
+                    log.info(
+                        "chat.iter=%d premature NO_MATCH after 1 search — "
+                        "injecting nudge", _iter,
+                    )
+                    nudged_for_premature_no_match = True
+                    messages.append({
+                        "role": "assistant", "content": text_buf,
+                    })
+                    messages.append({
+                        "role": "system",
+                        "content": (
+                            "你只 search 了 1 次,但用户的问题包含多个独立的"
+                            "子项(例如多个财务字段)。**禁止**直接回答"
+                            f'"{no_match_text}"。'
+                            "请用不同的关键词再 search 1-2 次去找其余子项,"
+                            "然后基于全部检索结果组合答案 + 输出图表(若适用)。"
+                        ),
+                    })
+                    finish_reason = None  # reset so we don't break
+                    continue  # next iteration
+
                 final_text_buf = text_buf
                 messages.append({"role": "assistant", "content": text_buf})
                 loop_finished_with_stop = True
@@ -133,6 +168,7 @@ class ConversationEngine:
 
             if finish_reason == "tool_calls" and tool_call_acc:
                 had_any_tool_call = True
+                tool_call_count += len(tool_call_acc)
                 tc_list = [
                     {"id": acc["id"], "type": "function",
                      "function": {"name": acc["name"], "arguments": acc["arguments"]}}

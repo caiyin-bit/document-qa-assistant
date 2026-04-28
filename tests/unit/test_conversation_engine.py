@@ -296,3 +296,83 @@ async def test_template_a_falls_back_to_no_tools_when_loop_exhausts():
     # Saved assistant message is non-empty
     saved = mem.save_assistant_message.await_args
     assert saved.args[1] == "抱歉，多次检索后仍未找到。"
+
+
+@pytest.mark.asyncio
+async def test_template_a_nudges_on_premature_no_match_after_single_search():
+    """Gemini sometimes commits to the literal NO_MATCH after just one
+    search, even when the question lists several sub-items. The engine
+    detects that pattern and injects a system message forcing one more
+    search round before accepting NO_MATCH."""
+    class _LLMChunk:
+        def __init__(self, text_delta="", tool_call_deltas=None, finish_reason=None):
+            self.text_delta = text_delta
+            self.tool_call_deltas = tool_call_deltas or []
+            self.finish_reason = finish_reason
+
+    class _ToolDelta:
+        def __init__(self, index, id=None, name=None, arguments_fragment=""):
+            self.index, self.id, self.name = index, id, name
+            self.arguments_fragment = arguments_fragment
+
+    NO_MATCH = "在已上传文档中未找到相关信息。"
+    counter = {"n": 0}
+    nudge_seen = {"value": False}
+
+    async def fake_chat_stream(messages, tools):
+        counter["n"] += 1
+        # Watch the messages list for the engine-injected nudge.
+        if any("禁止" in (m.get("content") or "") for m in messages
+               if isinstance(m, dict) and m.get("role") == "system"):
+            nudge_seen["value"] = True
+        if counter["n"] == 1:
+            yield _LLMChunk(tool_call_deltas=[_ToolDelta(
+                index=0, id="t1", name="search_documents",
+                arguments_fragment='{"query":"first"}')])
+            yield _LLMChunk(finish_reason="tool_calls")
+        elif counter["n"] == 2:
+            # Premature NO_MATCH after 1 search.
+            yield _LLMChunk(text_delta=NO_MATCH)
+            yield _LLMChunk(finish_reason="stop")
+        elif counter["n"] == 3:
+            # After nudge — model issues another tool call.
+            yield _LLMChunk(tool_call_deltas=[_ToolDelta(
+                index=0, id="t2", name="search_documents",
+                arguments_fragment='{"query":"second"}')])
+            yield _LLMChunk(finish_reason="tool_calls")
+        else:
+            yield _LLMChunk(text_delta="2025 年总收入 7517.66 亿元。")
+            yield _LLMChunk(finish_reason="stop")
+
+    llm = MagicMock(); llm.chat_stream = fake_chat_stream
+    tools = MagicMock()
+    tools.schemas = MagicMock(return_value=[])
+    tools.execute = AsyncMock(return_value={
+        "ok": True, "found": True,
+        "chunks": [{"doc_id": "d1", "filename": "x.pdf", "page_no": 1,
+                     "snippet": "...", "score": 0.9, "content": "..."}]
+    })
+
+    mem = MagicMock()
+    mem.count_documents_by_status = AsyncMock(
+        return_value={"ready": 1, "processing": 0, "failed": 0})
+    mem.list_documents = AsyncMock(return_value=[
+        MagicMock(filename="x.pdf", page_count=10, status=MagicMock(value="ready"))
+    ])
+    mem.list_messages = AsyncMock(return_value=[])
+    mem.save_user_message = AsyncMock()
+    mem.save_assistant_message = AsyncMock()
+
+    engine = ConversationEngine(
+        mem=mem, llm=llm, tools=tools, persona="助手",
+        max_tool_iterations=5,
+    )
+    events = [e async for e in engine.handle_stream(session_id="sid", message="问")]
+
+    # Final answer is the post-nudge real response, not the canned NO_MATCH.
+    full = "".join(e.data.get("delta", "") for e in events if e.type == "text")
+    assert NO_MATCH in full  # the premature one was streamed
+    assert "7517" in full   # the real answer streamed after retry
+    saved = mem.save_assistant_message.await_args
+    assert saved.args[1] == "2025 年总收入 7517.66 亿元。"
+    assert nudge_seen["value"] is True
