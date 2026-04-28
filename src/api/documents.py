@@ -307,10 +307,20 @@ def make_documents_router(*, embedder: BgeEmbedder, llm=None) -> APIRouter:
         path = UPLOADS_DIR / f"{document_id}.pdf"
         if not path.exists():
             raise HTTPException(404, "file missing on disk")
+        # HTTP headers must be Latin-1; non-ASCII filenames need RFC 5987
+        # encoding (percent-encoded UTF-8 in `filename*`). The plain
+        # `filename=` fallback is left as the document_id.pdf so older
+        # clients still get a sensible name.
+        from urllib.parse import quote
+        encoded = quote(doc.filename, safe="")
+        cd = (
+            f'inline; filename="{document_id}.pdf"; '
+            f"filename*=UTF-8''{encoded}"
+        )
         return FileResponse(
             path,
             media_type="application/pdf",
-            headers={"Content-Disposition": f'inline; filename="{doc.filename}"'},
+            headers={"Content-Disposition": cd},
         )
 
     @router.get("/sessions/{session_id}/documents/{document_id}/progress")
