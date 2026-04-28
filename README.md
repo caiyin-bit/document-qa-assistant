@@ -103,6 +103,44 @@ cookie-based session(starlette SessionMiddleware,签名 cookie / HttpOnly / Same
 
 ---
 
+## 答案格式(图表 / 表格)
+
+LLM 在合适时机可以**直接在回答里嵌入图表**,前端基于 [xviz](https://github.com/caiyin-bit/xviz)(Apache Superset 图表引擎的独立版,内核 ECharts)渲染,共 10 种类型:
+
+| 类型 | 适用场景 |
+|---|---|
+| `pie` / `donut` | 占比(各业务板块收入占比) |
+| `bar` | 分组对比、同比 |
+| `line` | 趋势(近 5 年营收) |
+| `big-number` | KPI 卡片(大数 + sparkline + 同比) |
+| `funnel` | 转化漏斗(总收入→毛利→运营利润→净利润) |
+| `sankey` | 流向(总收入→各业务板块) |
+| `heatmap` | 二维矩阵(各板块 × 各季度同比) |
+| `table` | 多行多列数据 |
+| `gauge` | 单值仪表 |
+| `scatter` | 散点(相关性) |
+
+**LLM 输出协议:** system prompt 教 LLM 在答案中插入 ```` ```chart ```` 代码块,JSON 形如:
+```json
+{"vizType":"bar","title":"...","xAxis":"name","metrics":["v2024","v2025"],"data":[{"name":"增值服务","v2024":313,"v2025":369}, ...]}
+```
+前端 markdown 渲染器拦截这个代码块 → 懒加载 xviz + ECharts → 渲染图表。echarts(~250KB gzip)是 lazy import,**没图表的对话不付下载代价**。
+
+**触发示例(腾讯年报):**
+
+| 提问 | 期望渲染 |
+|---|---|
+| "用饼图展示腾讯 2025 年各业务板块收入占比" | donut 图,4 个板块 |
+| "对比 2024 vs 2025 各板块收入" | 双 series 柱状图 |
+| "用折线图展示近 5 年总收入" | 单 series 平滑折线 + 渐变填充 |
+| "用 KPI 卡片展示 2025 总收入,带同比" | BigNumber + sparkline + +12.7% delta |
+| "用漏斗图展示从总收入到净利润" | 4 层倒梯形 |
+| "用 Sankey 图展示总收入流向" | 流向带 |
+
+**单点事实(如"总收入是多少")模型不会强加图表,直接给文字答案 + 引用页码。**
+
+---
+
 ## 检索策略(简版)
 
 1. **切分**:`pdfplumber` 逐页提取正文 + `extract_tables()` 把表格渲染成 markdown 追加到页末;按段落聚合 ≤500 token / 80 token 重叠 / 页边界硬切;每个 chunk 内容前加 `《文件名》第N页:` 元数据前缀;繁体 → 简体归一化(`zhconv`)
@@ -124,6 +162,7 @@ cookie-based session(starlette SessionMiddleware,签名 cookie / HttpOnly / Same
 | **gemini-2.5-flash** 默认 | 中文良好 + 工具调用收敛 + 价格便宜;首字 2-5s 比 Kimi-K2.6(15-120s 不稳)快一个数量级 |
 | **每条 LLM 调用 120s 应用层超时** | 防止 SSE keepalive 让流"假活";超时则进 fallback 而不是 hung |
 | **session_documents M2M** | 同一份 PDF 可挂多个会话,免重传;代价是 `delete_session` 要做"孤儿清理"逻辑 |
+| **xviz / ECharts 渲染图表** | 视觉级别和图表种类(Sankey / Funnel / BigNumber)直追 BI 产品;代价是 echarts ~250KB gzip,但用 `React.lazy` 拆出独立 chunk,无图表答案不付费 |
 | **cookie session + argon2** | 比 JWT 简单(可服务端撤销),无需 Redis;代价是 `SESSION_SECRET` 一旦泄漏所有 cookie 都得轮换 |
 | **`ALLOW_DEMO_LOGIN` 默认开** | localhost 体验不被注册流程打断;**生产必须关掉**否则任何匿名访问都映射到 demo 用户 |
 | **没做 PII 脱敏** | 文档内容直接存 DB / 喂 LLM;不适合敏感数据 |
@@ -194,4 +233,5 @@ cd frontend && pnpm test
 | Embedder / Reranker | BGE-large-zh-v1.5 / bge-reranker-base(本地 CPU) |
 | PDF | pdfplumber + 自定义表格→markdown |
 | 前端 | Next.js 15 · React 19 · Tailwind 4 · shadcn/ui · react-markdown |
+| 图表 | xviz(@minimal-viz/core)+ ECharts 6,React.lazy 拆 chunk |
 | 容器 | docker-compose(postgres + redis + backend + worker + frontend) |
