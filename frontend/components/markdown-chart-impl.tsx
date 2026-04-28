@@ -33,7 +33,45 @@ type Props = {
 // Default chart canvas. xviz expects explicit width/height; chat bubble
 // width is bounded by parent CSS, so we pin to a sane height and let
 // width be 100% of the bubble.
-const DEFAULT_HEIGHT = 280;
+const DEFAULT_HEIGHT = 320;
+
+/**
+ * Patch the LLM-emitted formData with safer defaults that fix two
+ * common rendering bugs:
+ *   1. Pie charts default to a top legend, which overlaps the outer
+ *      slice labels (especially Chinese ones). Move legend to bottom.
+ *   2. Cartesian charts (bar/line) with a single metric show a "metric
+ *      column name" legend that's both ugly ("revenue") and
+ *      space-wasting. Hide legend in that case.
+ *   3. Funnel/sankey/heatmap rarely need a legend either.
+ *
+ * Anything the LLM explicitly sets is preserved.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function applyDefaults(form: Record<string, any>): Record<string, any> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const out: Record<string, any> = { ...form };
+  const t = out.vizType;
+
+  if (t === "pie") {
+    if (out.legendOrientation === undefined) out.legendOrientation = "bottom";
+  }
+
+  if (t === "bar" || t === "line") {
+    const metrics = Array.isArray(out.metrics) ? out.metrics : [];
+    const hasSeriesCol = typeof out.seriesColumn === "string";
+    if (out.showLegend === undefined && metrics.length <= 1 && !hasSeriesCol) {
+      out.showLegend = false;
+    }
+    if (out.legendOrientation === undefined) out.legendOrientation = "bottom";
+  }
+
+  if (t === "funnel" || t === "sankey" || t === "heatmap" || t === "gauge") {
+    if (out.showLegend === undefined) out.showLegend = false;
+  }
+
+  return out;
+}
 
 export function ChartLoader({ spec, themeName }: Props) {
   const theme: Theme = themeName === "dark" ? DARK_THEME : LIGHT_THEME;
@@ -56,9 +94,10 @@ export function ChartLoader({ spec, themeName }: Props) {
   });
   const queriesData: QueryData[] = [{ data }];
   // xviz formData = the spec minus our bookkeeping fields (data, title).
-  const { data: _omitData, title: _omitTitle, ...formData } = spec;
+  const { data: _omitData, title: _omitTitle, ...rawForm } = spec;
   void _omitData;
   void _omitTitle;
+  const formData = applyDefaults(rawForm);
 
   // Common props for chart components — width/height + theme + the
   // chart-specific formData. Each chart picks its own viz type.
