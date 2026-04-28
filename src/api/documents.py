@@ -10,7 +10,8 @@ from pydantic import BaseModel
 from redis.exceptions import RedisError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.memory_service import MemoryService, DEMO_USER_ID
+from src.api.auth import require_user
+from src.core.memory_service import MemoryService
 from src.db.session import get_db
 from src.embedding.bge_embedder import BgeEmbedder
 from src.ingest.pdf_parser import open_pdf_meta, PdfValidationError
@@ -32,12 +33,13 @@ def make_documents_router(*, embedder: BgeEmbedder, llm=None) -> APIRouter:
         request: Request,
         file: UploadFile = File(...),
         db: AsyncSession = Depends(get_db),
+        user_id: UUID = Depends(require_user),
     ):
         mem = MemoryService(db)
 
         # 1) session ownership
         sess = await mem.get_session(session_id)
-        if sess is None or sess.user_id != DEMO_USER_ID:
+        if sess is None or sess.user_id != user_id:
             raise HTTPException(404, "session not found")
 
         # validate extension
@@ -67,7 +69,7 @@ def make_documents_router(*, embedder: BgeEmbedder, llm=None) -> APIRouter:
         try:
             doc = await mem.create_document(
                 document_id=document_id,
-                user_id=DEMO_USER_ID,
+                user_id=user_id,
                 session_id=session_id,
                 filename=file.filename,
                 page_count=meta.page_count,
@@ -115,10 +117,13 @@ def make_documents_router(*, embedder: BgeEmbedder, llm=None) -> APIRouter:
         }
 
     @router.get("/sessions/{session_id}/documents")
-    async def list_documents(session_id: UUID, db: AsyncSession = Depends(get_db)):
+    async def list_documents(
+        session_id: UUID, db: AsyncSession = Depends(get_db),
+        user_id: UUID = Depends(require_user),
+    ):
         mem = MemoryService(db)
         sess = await mem.get_session(session_id)
-        if sess is None or sess.user_id != DEMO_USER_ID:
+        if sess is None or sess.user_id != user_id:
             raise HTTPException(404, "session not found")
         rows = await mem.list_documents(session_id)
         return [
@@ -136,16 +141,17 @@ def make_documents_router(*, embedder: BgeEmbedder, llm=None) -> APIRouter:
     @router.get("/sessions/{session_id}/documents/library")
     async def list_user_library(
         session_id: UUID, db: AsyncSession = Depends(get_db),
+        user_id: UUID = Depends(require_user),
     ):
         """Lists user's other ready docs not yet attached to this session.
         Powers the "+ 添加已有文档" dropdown so a brand-new conversation
         can pull in PDFs uploaded earlier."""
         mem = MemoryService(db)
         sess = await mem.get_session(session_id)
-        if sess is None or sess.user_id != DEMO_USER_ID:
+        if sess is None or sess.user_id != user_id:
             raise HTTPException(404, "session not found")
         rows = await mem.list_user_library(
-            DEMO_USER_ID, exclude_session_id=session_id,
+            user_id, exclude_session_id=session_id,
         )
         return [
             {
@@ -163,24 +169,26 @@ def make_documents_router(*, embedder: BgeEmbedder, llm=None) -> APIRouter:
     async def attach_documents(
         session_id: UUID, body: AttachBody,
         db: AsyncSession = Depends(get_db),
+        user_id: UUID = Depends(require_user),
     ):
         """Attach existing user-owned documents to this session via the
         session_documents M2M link. Idempotent (ON CONFLICT DO NOTHING)."""
         mem = MemoryService(db)
         sess = await mem.get_session(session_id)
-        if sess is None or sess.user_id != DEMO_USER_ID:
+        if sess is None or sess.user_id != user_id:
             raise HTTPException(404, "session not found")
         for did in body.document_ids:
             doc = await mem.get_document(did)
             # Defensive ownership check: don't let a session attach docs
             # that belong to another user.
-            if doc is None or doc.user_id != DEMO_USER_ID:
+            if doc is None or doc.user_id != user_id:
                 continue
             await mem.attach_document_to_session(session_id, did)
 
     @router.delete("/sessions/{session_id}/documents/{document_id}", status_code=204)
     async def delete_document(
         session_id: UUID, document_id: UUID, db: AsyncSession = Depends(get_db),
+        user_id: UUID = Depends(require_user),
     ):
         """Detach the doc from this session. Only fully deletes (and
         unlinks the PDF on disk) if no OTHER session still references
@@ -189,10 +197,10 @@ def make_documents_router(*, embedder: BgeEmbedder, llm=None) -> APIRouter:
         from sqlalchemy import text as _text
         mem = MemoryService(db)
         sess = await mem.get_session(session_id)
-        if sess is None or sess.user_id != DEMO_USER_ID:
+        if sess is None or sess.user_id != user_id:
             raise HTTPException(404, "session not found")
         doc = await mem.get_document(document_id)
-        if doc is None or doc.user_id != DEMO_USER_ID:
+        if doc is None or doc.user_id != user_id:
             raise HTTPException(404, "document not found")
         status = doc.status.value if hasattr(doc.status, "value") else doc.status
         if status == "processing":
@@ -221,6 +229,7 @@ def make_documents_router(*, embedder: BgeEmbedder, llm=None) -> APIRouter:
     @router.get("/sessions/{session_id}/documents/{document_id}/intro")
     async def get_document_intro(
         session_id: UUID, document_id: UUID, db: AsyncSession = Depends(get_db),
+        user_id: UUID = Depends(require_user),
     ):
         """LLM-generated 2-3 sentence summary + 3 suggested follow-up
         questions for the document. Used by the empty-state of the chat
@@ -238,10 +247,10 @@ def make_documents_router(*, embedder: BgeEmbedder, llm=None) -> APIRouter:
         import json
         mem = MemoryService(db)
         sess = await mem.get_session(session_id)
-        if sess is None or sess.user_id != DEMO_USER_ID:
+        if sess is None or sess.user_id != user_id:
             raise HTTPException(404, "session not found")
         doc = await mem.get_document(document_id)
-        if doc is None or doc.session_id != session_id:
+        if doc is None or doc.user_id != user_id:
             raise HTTPException(404, "document not found")
         status = doc.status.value if hasattr(doc.status, "value") else doc.status
         if status != "ready":
@@ -282,6 +291,7 @@ def make_documents_router(*, embedder: BgeEmbedder, llm=None) -> APIRouter:
     @router.get("/sessions/{session_id}/documents/{document_id}/file")
     async def get_document_file(
         session_id: UUID, document_id: UUID, db: AsyncSession = Depends(get_db),
+        user_id: UUID = Depends(require_user),
     ):
         """Serve the original PDF inline so the browser can render it (for
         the citation-jump preview pane). Validates session ownership +
@@ -289,10 +299,10 @@ def make_documents_router(*, embedder: BgeEmbedder, llm=None) -> APIRouter:
         from fastapi.responses import FileResponse
         mem = MemoryService(db)
         sess = await mem.get_session(session_id)
-        if sess is None or sess.user_id != DEMO_USER_ID:
+        if sess is None or sess.user_id != user_id:
             raise HTTPException(404, "session not found")
         doc = await mem.get_document(document_id)
-        if doc is None or doc.session_id != session_id:
+        if doc is None or doc.user_id != user_id:
             raise HTTPException(404, "document not found")
         path = UPLOADS_DIR / f"{document_id}.pdf"
         if not path.exists():

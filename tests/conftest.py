@@ -13,12 +13,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 @pytest_asyncio.fixture
 async def db_session() -> AsyncSession:
+    from src.core.memory_service import MemoryService
     from src.db.session import get_engine
     from sqlalchemy.ext.asyncio import async_sessionmaker
     from sqlalchemy import text
     engine = get_engine()
     Sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
     async with Sessionmaker() as session:
+        # Re-seed demo user. Tests rely on it as the implicit current
+        # user (via require_user's demo fallback or DEMO_USER_ID); the
+        # previous conftest dropped this seed which broke FK constraints
+        # once we removed the auto-upsert from the route.
+        await MemoryService(session).upsert_demo_user()
         try:
             yield session
         finally:

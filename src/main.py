@@ -16,7 +16,9 @@ from functools import lru_cache
 from arq import create_pool
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 
+from src.api.auth import make_auth_router
 from src.api.chat import ChatDependencies, ConvSettings, make_router
 from src.api.documents import make_documents_router
 from src.config import Config, load_config
@@ -30,13 +32,36 @@ from src.worker.redis_pool import make_redis_settings
 
 def create_app(deps: ChatDependencies) -> FastAPI:
     app = FastAPI(title="Document QA Assistant")
+    # Sessions are signed (HMAC) via SessionMiddleware. Cookie is HttpOnly
+    # by default; SameSite=lax keeps the dev cross-origin (3000 → 8000)
+    # case working without disabling CSRF protection entirely. In prod
+    # SESSION_SECRET MUST be a strong random value — the dev fallback
+    # logs a warning so it doesn't silently ship.
+    secret = os.environ.get("SESSION_SECRET")
+    if not secret:
+        secret = "dev-secret-DO-NOT-USE-IN-PROD-please-set-SESSION_SECRET"
+        logging.getLogger(__name__).warning(
+            "SESSION_SECRET not set; using insecure dev default"
+        )
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=secret,
+        session_cookie="docqa_session",
+        max_age=60 * 60 * 24 * 7,  # 7 days
+        same_site="lax",
+        https_only=False,  # dev — flip to True behind TLS
+    )
+    # CORS: credentials must be true for the cookie to flow on the
+    # cross-origin (3000 → 8000) requests; that requires a concrete
+    # origin (no "*").
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:3000"],
         allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
         allow_headers=["*"],
-        allow_credentials=False,
+        allow_credentials=True,
     )
+    app.include_router(make_auth_router(sessionmaker=deps.sessionmaker))
     app.include_router(make_router(deps))
     app.include_router(make_documents_router(embedder=deps.embedder, llm=deps.llm))
     return app

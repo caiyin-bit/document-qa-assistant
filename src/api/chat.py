@@ -28,6 +28,7 @@ def _derive_title(first_user_msg: str | None) -> str:
         return text
     return text[:_TITLE_MAX_CHARS] + "…"
 
+from src.api.auth import require_user
 from src.api.sse import SSEStreamingResponse, to_sse_bytes
 from src.core.conversation_engine import ConversationEngine
 from src.core.memory_service import MemoryService
@@ -116,15 +117,16 @@ def make_router(deps: ChatDependencies) -> APIRouter:
     @router.post("/sessions", response_model=SessionCreatedResponse)
     async def create_session(
         db: AsyncSession = Depends(get_db),
+        user_id: UUID = Depends(require_user),
     ) -> SessionCreatedResponse:
         memory = _build_memory(db)
-        await memory.upsert_demo_user()
-        sess = await memory.create_session(user_id=deps.default_user_id)
+        sess = await memory.create_session(user_id=user_id)
         return SessionCreatedResponse(session_id=sess.id)
 
     @router.get("/sessions", response_model=list[SessionListItem])
     async def list_sessions(
-        limit: int = 50, db: AsyncSession = Depends(get_db)
+        limit: int = 50, db: AsyncSession = Depends(get_db),
+        user_id: UUID = Depends(require_user),
     ) -> list[SessionListItem]:
         if limit < 1 or limit > 200:
             raise HTTPException(
@@ -133,7 +135,7 @@ def make_router(deps: ChatDependencies) -> APIRouter:
             )
         memory = _build_memory(db)
         rows = await memory.list_sessions_with_titles(
-            user_id=deps.default_user_id, limit=limit
+            user_id=user_id, limit=limit
         )
         return [
             SessionListItem(
@@ -146,11 +148,12 @@ def make_router(deps: ChatDependencies) -> APIRouter:
 
     @router.delete("/sessions/{session_id}", status_code=204)
     async def delete_session(
-        session_id: UUID, db: AsyncSession = Depends(get_db)
+        session_id: UUID, db: AsyncSession = Depends(get_db),
+        user_id: UUID = Depends(require_user),
     ):
         memory = _build_memory(db)
         sess = await memory.get_session(session_id)
-        if sess is None or sess.user_id != deps.default_user_id:
+        if sess is None or sess.user_id != user_id:
             raise HTTPException(
                 status_code=404,
                 detail="session not found or not owned by current user",
@@ -176,11 +179,12 @@ def make_router(deps: ChatDependencies) -> APIRouter:
         response_model=list[HistoricalMessage],
     )
     async def list_messages(
-        session_id: UUID, db: AsyncSession = Depends(get_db)
+        session_id: UUID, db: AsyncSession = Depends(get_db),
+        user_id: UUID = Depends(require_user),
     ) -> list[HistoricalMessage]:
         memory = _build_memory(db)
         sess = await memory.get_session(session_id)
-        if sess is None or sess.user_id != deps.default_user_id:
+        if sess is None or sess.user_id != user_id:
             raise HTTPException(
                 status_code=404,
                 detail="session not found or not owned by current user",
@@ -200,14 +204,15 @@ def make_router(deps: ChatDependencies) -> APIRouter:
 
     @router.post("/chat/stream")
     async def chat_stream(
-        req: ChatRequest, db: AsyncSession = Depends(get_db)
+        req: ChatRequest, db: AsyncSession = Depends(get_db),
+        user_id: UUID = Depends(require_user),
     ) -> SSEStreamingResponse:
         # Validate session up-front so a stale frontend session_id (e.g.
         # leftover in URL after a session was deleted or DB truncated)
         # produces a 404, not an FK violation deep inside the SSE stream.
         memory = _build_memory(db)
         sess = await memory.get_session(req.session_id)
-        if sess is None or sess.user_id != deps.default_user_id:
+        if sess is None or sess.user_id != user_id:
             raise HTTPException(
                 status_code=404,
                 detail="session not found or not owned by current user",

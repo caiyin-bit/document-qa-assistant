@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createSession, listSessions } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 import { SessionsSidebar } from "@/components/sessions-sidebar";
 import { DocumentSidebar } from "@/components/document-sidebar";
 import { ChatPane } from "@/components/chat-pane";
@@ -13,9 +14,19 @@ import type { SessionSummary } from "@/lib/types";
 export function Home() {
   const params = useSearchParams();
   const router = useRouter();
+  const { me, loading: authLoading } = useAuth();
   const sessionId = params.get("session");
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const { toggle: toggleTheme } = useTheme();
+
+  // Bounce to /login when auth resolves to "no user". Demo mode (when
+  // ALLOW_DEMO_LOGIN=true server-side) returns a Me object too, so this
+  // only fires on a real "not logged in" response.
+  useEffect(() => {
+    if (!authLoading && me === null) {
+      router.replace("/login");
+    }
+  }, [authLoading, me, router]);
 
   const refreshSessions = async () => {
     try {
@@ -59,6 +70,20 @@ export function Home() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [router, toggleTheme]);
+
+  if (authLoading || me === null) {
+    return (
+      <main
+        className="flex h-screen w-screen items-center justify-center"
+        style={{
+          backgroundColor: "var(--app-bg)",
+          color: "var(--app-text-faint)",
+        }}
+      >
+        加载中…
+      </main>
+    );
+  }
 
   return (
     <main

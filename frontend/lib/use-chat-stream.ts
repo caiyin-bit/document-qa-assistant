@@ -37,6 +37,7 @@ export function useChatStream(sessionId: string | null) {
       try {
         const r = await fetch(STREAM_URL, {
           method: "POST",
+          credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ session_id: sessionId, message: text }),
           signal: ctrl.signal,

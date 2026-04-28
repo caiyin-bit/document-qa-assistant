@@ -1,11 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Plus, Trash2 } from "lucide-react";
+import { LogOut, Plus, Trash2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { createSession, deleteSession } from "@/lib/api";
+import { createSession, deleteSession, logout } from "@/lib/api";
 import type { SessionSummary } from "@/lib/types";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useAuth } from "@/lib/auth-context";
 
 type Props = {
   sessions: SessionSummary[];
@@ -19,6 +20,13 @@ export function SessionsSidebar({
   onAfterCreate,
 }: Props) {
   const router = useRouter();
+  const { me, refresh: refreshAuth } = useAuth();
+
+  async function handleLogout() {
+    await logout();
+    await refreshAuth();
+    router.replace("/login");
+  }
 
   async function handleNew() {
     const { session_id } = await createSession();
@@ -131,10 +139,56 @@ export function SessionsSidebar({
         </ul>
       </ScrollArea>
       <div
-        className="border-t px-3 py-2"
+        className="border-t"
         style={{ borderColor: "var(--app-border-subtle)" }}
       >
-        <ThemeToggle />
+        {me && (
+          <div
+            className="flex items-center gap-2 border-b px-3 py-2"
+            style={{ borderColor: "var(--app-border-subtle)" }}
+          >
+            <div
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold"
+              style={{
+                backgroundColor: "var(--app-accent)",
+                color: "var(--app-text-on-accent)",
+              }}
+            >
+              {(me.name || me.email || "?").slice(0, 1).toUpperCase()}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div
+                className="truncate text-[12px]"
+                style={{ color: "var(--app-text-primary)" }}
+                title={me.email ?? me.name}
+              >
+                {me.name}
+              </div>
+              {me.is_demo && (
+                <div
+                  className="text-[10px] font-mono"
+                  style={{ color: "var(--app-text-tertiary)" }}
+                >
+                  demo 模式
+                </div>
+              )}
+            </div>
+            {!me.is_demo && (
+              <button
+                onClick={handleLogout}
+                aria-label="退出登录"
+                title="退出登录"
+                className="rounded p-1 transition hover:opacity-100"
+                style={{ color: "var(--app-text-faint)" }}
+              >
+                <LogOut className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        )}
+        <div className="px-3 py-2">
+          <ThemeToggle />
+        </div>
       </div>
     </aside>
   );

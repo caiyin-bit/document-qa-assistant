@@ -31,6 +31,11 @@ class User(Base):
     __tablename__ = "users"
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
     name: Mapped[str] = mapped_column(String(120))
+    # Nullable so existing rows + future OAuth users can co-exist with
+    # password-auth users; the partial UNIQUE index in migration 0005
+    # only enforces uniqueness when email is NOT NULL.
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

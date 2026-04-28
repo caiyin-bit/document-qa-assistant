@@ -25,6 +25,9 @@ dependencies = [
     "arq>=0.26",
     "redis>=5.0",
     "zhconv>=1.4", # 繁简归一化 — 见 src/ingest/zh_normalize.py
+    "argon2-cffi>=23.1", # 密码哈希
+    "itsdangerous>=2.1", # starlette SessionMiddleware 签名
+    "email-validator>=2.3.0",
 ]
 
 [project.optional-dependencies]
