@@ -19,11 +19,13 @@ export function Home() {
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const { toggle: toggleTheme } = useTheme();
 
-  // Bounce to /login when auth resolves to "no user". Demo mode (when
-  // ALLOW_DEMO_LOGIN=true server-side) returns a Me object too, so this
-  // only fires on a real "not logged in" response.
+  // Bounce to /login for unauthenticated users AND for demo-fallback
+  // users — the UI requires a real account so each user's data stays
+  // isolated. The server-side ALLOW_DEMO_LOGIN demo path is kept only
+  // as a convenience for direct API / curl testing.
   useEffect(() => {
-    if (!authLoading && me === null) {
+    if (authLoading) return;
+    if (me === null || me.is_demo) {
       router.replace("/login");
     }
   }, [authLoading, me, router]);
@@ -71,7 +73,7 @@ export function Home() {
     return () => window.removeEventListener("keydown", onKey);
   }, [router, toggleTheme]);
 
-  if (authLoading || me === null) {
+  if (authLoading || me === null || me.is_demo) {
     return (
       <main
         className="flex h-screen w-screen items-center justify-center"

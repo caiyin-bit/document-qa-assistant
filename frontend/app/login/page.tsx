@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { login } from "@/lib/api";
@@ -8,11 +8,19 @@ import { useAuth } from "@/lib/auth-context";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { refresh } = useAuth();
+  const { me, loading: authLoading, refresh } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Already-real-logged-in users bypass the form. is_demo doesn't
+  // count — the home page treats it as "not logged in".
+  useEffect(() => {
+    if (!authLoading && me && !me.is_demo) {
+      router.replace("/");
+    }
+  }, [authLoading, me, router]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();

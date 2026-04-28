@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { register } from "@/lib/api";
@@ -8,12 +8,18 @@ import { useAuth } from "@/lib/auth-context";
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { refresh } = useAuth();
+  const { me, loading: authLoading, refresh } = useAuth();
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!authLoading && me && !me.is_demo) {
+      router.replace("/");
+    }
+  }, [authLoading, me, router]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
