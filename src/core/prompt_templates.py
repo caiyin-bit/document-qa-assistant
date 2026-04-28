@@ -54,6 +54,26 @@ _A_TEMPLATE = """{persona}
 7. 用简洁、专业的中文回答；数字保留报告中的精度（包括单位"百万元"等）
 """
 
+# Kept out of _A_TEMPLATE so the .format() call in render_system_prompt
+# doesn't try to interpret the JSON example braces as placeholders.
+_STRUCTURED_OUTPUT_GUIDE = """
+
+【结构化输出】
+- 多行多列对比 → 用 markdown 表格
+- 数据有可视化价值时（同比/环比/分类占比/趋势/漏斗/流向），在答案中嵌入 ```chart``` JSON 代码块；前端会自动渲染图表
+- 单点事实（"总收入是多少"）直接答，**不要**强加图表
+- 图表 JSON 必须以 `vizType` 和 `data` 为顶层字段；常用类型：
+  - `pie`：占比 → `{"vizType":"pie","title":"...","groupby":["category"],"metric":"value","donut":true,"data":[{"category":"A","value":120},...]}`
+  - `bar`：分组对比/同比 → `{"vizType":"bar","title":"...","xAxis":"name","metrics":["v2024","v2025"],"data":[{"name":"增值服务","v2024":313,"v2025":369},...]}`
+  - `line`：趋势 → `{"vizType":"line","title":"...","xAxis":"year","metrics":["revenue"],"smooth":true,"area":true,"data":[{"year":"2021","revenue":560},...]}`
+  - `funnel`：漏斗 → `{"vizType":"funnel","title":"利润漏斗","groupby":["stage"],"metric":"value","data":[{"stage":"营收","value":7517},{"stage":"毛利","value":4223},{"stage":"运营利润","value":2334},{"stage":"净利润","value":1947}]}`
+  - `big-number`：单 KPI（带同比）→ `{"vizType":"big-number","title":"2025 总收入","metric":"v","subheader":"百万元","trendColumn":"v","trendTimeColumn":"year","compareToPrevious":true,"data":[{"year":2021,"v":560436},{"year":2022,"v":554552},{"year":2023,"v":609015},{"year":2024,"v":660257},{"year":2025,"v":751766}]}`
+  - `sankey`：流向 → `{"vizType":"sankey","title":"...","source":"src","target":"tgt","metric":"v","data":[{"src":"总收入","tgt":"增值服务","v":369},...]}`
+  - `heatmap`：二维矩阵 → `{"vizType":"heatmap","title":"...","xAxis":"quarter","yAxis":"segment","metric":"yoy","data":[{"quarter":"Q1","segment":"增值","yoy":12},...]}`
+- 图表代码块必须是合法 JSON（双引号），数据数值保留报告中的真实数字（不要造假），单位通过 title 或 subheader 显示
+- 原则：图表是补充而不是替代，必要时图表前后还是要有简短的文字说明
+"""
+
 _B_EMPTY_TEMPLATE = """你是一个友好的中文助手。用户尚未上传任何 PDF 文档。
 
 【行为规则】
@@ -82,7 +102,7 @@ def render_system_prompt(template: str, *, docs: list[dict], persona: str) -> st
         return _A_TEMPLATE.format(
             persona=persona, doc_list=doc_lines,
             no_match=FIXED_RESPONSES["NO_MATCH"],
-        )
+        ) + _STRUCTURED_OUTPUT_GUIDE
     if template == "B-EMPTY":
         # Persona deliberately NOT included — the persona enforces strict
         # PDF-only answering, which is the wrong behavior here.

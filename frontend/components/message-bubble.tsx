@@ -4,6 +4,30 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Message, ToolCall } from "@/lib/types";
 import { CitationCard } from "./citation-card";
+import { MarkdownChart } from "./markdown-chart";
+
+// Custom react-markdown renderer for ```chart fenced blocks. Anything
+// else (regular code blocks, inline code) falls back to default.
+const MARKDOWN_COMPONENTS = {
+  code(props: { className?: string; children?: React.ReactNode }) {
+    const { className, children } = props;
+    if (className === "language-chart" && typeof children === "string") {
+      return <MarkdownChart source={children} />;
+    }
+    // Default: render code as-is. We can't return undefined, so wrap.
+    return <code className={className}>{children}</code>;
+  },
+  pre(props: { children?: React.ReactNode }) {
+    // If our `code` handler returned a chart, the surrounding <pre> would
+    // be ugly. Detect: when its only child is our custom chart, render
+    // children straight without the <pre> shell.
+    const child = (props.children as { props?: { className?: string } } | undefined);
+    if (child?.props?.className === "language-chart") {
+      return <>{props.children}</>;
+    }
+    return <pre>{props.children}</pre>;
+  },
+};
 
 // Map raw tool name → user-facing Chinese label. Keep it tiny; we only
 // have one tool today, but listing here makes it easy to extend.
@@ -82,7 +106,10 @@ export function MessageBubble({
             </div>
           ) : (
             <div className="markdown-body break-words">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={MARKDOWN_COMPONENTS}
+              >
                 {message.content + (isStreaming ? " ▍" : "")}
               </ReactMarkdown>
             </div>

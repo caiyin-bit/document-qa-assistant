@@ -12,8 +12,10 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
+    "@minimal-viz/core": "^0.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "echarts": "^6.0.0",
     "geist": "^1.7.0",
     "lucide-react": "^1.11.0",
     "next": "15.5.15",
