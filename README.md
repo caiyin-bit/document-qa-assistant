@@ -36,7 +36,38 @@ GEMINI_API_KEY=sk-...           # OpenAI 协议兼容的 API key
 GEMINI_BASE_URL=https://deeprouter.top/v1
 GEMINI_MODEL_ID=gemini-2.5-flash
 MIN_SIMILARITY=0.35
+
+# Auth
+SESSION_SECRET=<32-byte 随机串>   # 生产必须;dev 不设会用一个有警告的默认值
+ALLOW_DEMO_LOGIN=true            # 默认 true,localhost 不登录也能用 demo 用户;生产请设 false
 ```
+
+---
+
+## 注册 / 登录 / 多用户
+
+cookie-based session(starlette SessionMiddleware,签名 cookie / HttpOnly / SameSite=lax / 7 天 TTL),密码用 argon2 哈希。
+
+**两种使用模式:**
+
+| 模式 | 触发 | 行为 |
+|---|---|---|
+| **demo 模式** | `ALLOW_DEMO_LOGIN=true`(默认)且未登录 | 自动 fall back 到 `demo@example.com`,不需要注册;sidebar 底部显示"demo 模式"标签 |
+| **真实账号** | 注册或登录后 | 文档/会话归属当前用户,sidebar 显示真名 + 退出按钮;cookie 失效 → 跳 `/login` |
+
+**注册流程:**
+1. 浏览器打开 [/register](http://localhost:3000/register),输入邮箱 + 密码(≥6 位)+ 可选昵称 → 自动登录 → 跳回主页
+2. sidebar 底部出现真名 + 邮箱 tooltip,点退出按钮即清 cookie
+
+**API endpoints:**
+- `POST /auth/register` — body `{email, password, name?}`,返回 `{user_id, email, name, is_demo}` + 设置 session cookie
+- `POST /auth/login` — body `{email, password}`,同上
+- `POST /auth/logout` — 清 session
+- `GET /auth/me` — 读当前用户;未登录且 demo 关闭时返回 401
+
+**多租户隔离:** 每个文档/会话挂在 `user_id` 上,所有路由通过 `Depends(require_user)` 限定当前用户的资源。一个用户看不到另一个用户的会话或文档。
+
+> 生产部署清单:`SESSION_SECRET` 设强随机 + `ALLOW_DEMO_LOGIN=false` + docker-compose 把 `https_only=True` 打开 + `CORSMiddleware` 收紧 origin 列表。
 
 ---
 
@@ -85,7 +116,8 @@ MIN_SIMILARITY=0.35
 | **gemini-2.5-flash** 默认 | 中文良好 + 工具调用收敛 + 价格便宜;首字 2-5s 比 Kimi-K2.6(15-120s 不稳)快一个数量级 |
 | **每条 LLM 调用 120s 应用层超时** | 防止 SSE keepalive 让流"假活";超时则进 fallback 而不是 hung |
 | **session_documents M2M** | 同一份 PDF 可挂多个会话,免重传;代价是 `delete_session` 要做"孤儿清理"逻辑 |
-| **没做认证** | demo 阶段所有人共享 demo user;生产前必须加 |
+| **cookie session + argon2** | 比 JWT 简单(可服务端撤销),无需 Redis;代价是 `SESSION_SECRET` 一旦泄漏所有 cookie 都得轮换 |
+| **`ALLOW_DEMO_LOGIN` 默认开** | localhost 体验不被注册流程打断;**生产必须关掉**否则任何匿名访问都映射到 demo 用户 |
 | **没做 PII 脱敏** | 文档内容直接存 DB / 喂 LLM;不适合敏感数据 |
 
 ---
@@ -98,12 +130,12 @@ MIN_SIMILARITY=0.35
 2. **多文档对比** RAG:跨文档召回 + 结构化输出(表格对比同期数据)
 3. **结构化指标提取**:财报场景预提取营收/毛利/费用率等常见维度,做卡片直观展示
 4. **HNSW 替换 ivfflat** + **分词 BM25**:大规模索引下召回质量
-5. **认证 + 多租户**:cookie/JWT 登录,文档真正隔离
+5. **认证生态完善**:邮箱验证、找回密码、OAuth(Google/微信),会话强制下线列表(目前 cookie 是 stateless 签名)
 6. **生产 Docker 镜像**:多阶段 build / 非 root user / health check / Tini PID 1 / k8s manifest
 7. **Prometheus metrics**:LLM 时延 / 召回数 / 重排时延 / token 用量
 8. **流式 PDF 上传 + 大文件分片**:当前 20MB 上限是单次内存读
 9. **移动端体验**:hamburger 菜单 + 触摸优化(目前只做了基础响应式)
-10. **e2e 测试覆盖 chat 路径**:目前只有 ingestion 的 e2e
+10. **e2e 测试覆盖 chat 路径 + auth 路径**:目前只有 ingestion 的 e2e
 
 ---
 
