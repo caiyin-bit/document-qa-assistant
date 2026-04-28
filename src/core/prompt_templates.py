@@ -95,6 +95,7 @@ _STRUCTURED_OUTPUT_GUIDE = """
   - `graph`：网络图（节点+边）→ `{"vizType":"graph","title":"...","source":"src","target":"tgt","metric":"weight","layout":"force","data":[{"src":"腾讯","tgt":"美团","weight":17},{"src":"腾讯","tgt":"京东","weight":15},...]}`
 - 图表代码块必须是合法 JSON（双引号），数据数值保留报告中的真实数字（不要造假），单位通过 title 或 subheader 显示
 - 原则：图表是补充而不是替代，必要时图表前后还是要有简短的文字说明
+- **禁止**说"不支持 X 图表"——上面列出的 18 种 vizType（pie/bar/line/waterfall/funnel/big-number/sankey/heatmap/treemap/sunburst/radar/boxplot/histogram/step/tree/graph/table/scatter/gauge）都受前端支持，直接输出对应的 ```chart``` 代码块即可
 """
 
 _B_EMPTY_TEMPLATE = """你是一个友好的中文助手。用户尚未上传任何 PDF 文档。
