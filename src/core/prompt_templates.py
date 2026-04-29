@@ -93,9 +93,23 @@ _STRUCTURED_OUTPUT_GUIDE = """
   - `step`：阶梯折线（状态变化时序）→ `{"vizType":"step","title":"...","xAxis":"date","metrics":["count"],"data":[{"date":"2024-Q4","count":110558},{"date":"2025-Q4","count":115849}]}`
   - `tree`：层级树（节点-连线）→ `{"vizType":"tree","title":"...","groupby":["level1","level2"],"metric":"value","layout":"orthogonal","orient":"LR","data":[{"level1":"腾讯控股","level2":"微信","value":1},{"level1":"腾讯控股","level2":"游戏","value":1},...]}`
   - `graph`：网络图（节点+边）→ `{"vizType":"graph","title":"...","source":"src","target":"tgt","metric":"weight","layout":"force","data":[{"src":"腾讯","tgt":"美团","weight":17},{"src":"腾讯","tgt":"京东","weight":15},...]}`
+  - `timeseries-line` / `timeseries-bar`：真正时间轴的折线/柱状（接 ISO 日期或 epoch ms）→ `{"vizType":"timeseries-line","xAxis":"date","metrics":["revenue"],"data":[{"date":"2025-01-01","revenue":50000},...]}`
+  - `mixed-timeseries`：柱+线混合（可双 Y 轴，例如左轴金额、右轴比率）→ `{"vizType":"mixed-timeseries","xAxis":"date","barMetrics":["revenue"],"lineMetrics":["margin_rate"],"dualAxis":true,"data":[...]}`
+  - `gantt`：甘特图（项目排期）→ `{"vizType":"gantt","title":"...","taskColumn":"task","startColumn":"start","endColumn":"end","groupColumn":"owner","data":[{"task":"研发","start":"2025-01-01","end":"2025-03-31","owner":"张三"},...]}`
+  - `big-number-total`：单 KPI（合计所有行）→ `{"vizType":"big-number-total","title":"年度营收合计","metric":"v","subheader":"百万元","data":[{"q":"Q1","v":150},{"q":"Q2","v":180},...]}`
+  - `big-number-pop`：同/环比 KPI（同时显示当前值 + 上期 + 涨跌幅）→ `{"vizType":"big-number-pop","title":"MAU","metric":"v","previousMetric":"prev_v","compareLabel":"vs 上月","data":[{"v":13.7,"prev_v":13.4}]}`
+  - `time-table`：时间透视（行=指标，列=时间点）→ `{"vizType":"time-table","timeColumn":"month","metricColumn":"name","valueColumn":"v","data":[{"month":"2025-01","name":"营收","v":58000},...]}`
+  - `pivot-table`：透视表（行 × 列 × 单 metric，5 种 aggregator）→ `{"vizType":"pivot-table","rowDims":["region"],"colDims":["quarter"],"metric":"v","aggregator":"sum","showRowTotals":true,"showColTotals":true,"data":[...]}`
+  - `calendar`：日历热力图（按天）→ `{"vizType":"calendar","title":"全年活跃","dateColumn":"date","metric":"count","data":[{"date":"2025-01-01","count":120},...]}`
+  - `rose`：南丁格尔玫瑰图（pie 变种，扇区编码 metric）→ `{"vizType":"rose","groupby":["category"],"metric":"value","roseType":"radius","data":[...]}`
+  - `parallel`：多轴平行坐标（每行一条折线穿过 N 轴）→ `{"vizType":"parallel","metrics":["revenue","growth","margin"],"seriesColumn":"segment","data":[...]}`
+  - `bullet`：子弹图（KPI 含 poor/satisfactory/good 区间 + 目标线）→ `{"vizType":"bullet","title":"Q4 KPI","categoryColumn":"metric","valueColumn":"actual","targetColumn":"target","ranges":[60,80,100],"data":[...]}`
+  - `chord`：弦图（圆环流向，自动从边集推节点）→ `{"vizType":"chord","source":"src","target":"tgt","metric":"v","data":[...]}`
+  - `world-map` / `country-map`：地理热力图（**需要用户提供 GeoJSON**，文档查询场景一般用不到）
+- 还有 alias 类型可用（同义于上面，仅 vizType 名不同）：`compare`(=multi-line) / `partition`(=treemap+breadcrumb) / `time-pivot`(=time-table) / `horizon`(=smooth area line) / `paired-ttest`(=grouped boxplot)
 - 图表代码块必须是合法 JSON（双引号），数据数值保留报告中的真实数字（不要造假），单位通过 title 或 subheader 显示
 - 原则：图表是补充而不是替代，必要时图表前后还是要有简短的文字说明
-- **禁止**说"不支持 X 图表"——上面列出的 18 种 vizType（pie/bar/line/waterfall/funnel/big-number/sankey/heatmap/treemap/sunburst/radar/boxplot/histogram/step/tree/graph/table/scatter/gauge）都受前端支持，直接输出对应的 ```chart``` 代码块即可
+- **禁止**说"不支持 X 图表"——前端支持以下 39 种 vizType（pie/bar/line/waterfall/funnel/big-number/sankey/heatmap/treemap/sunburst/radar/boxplot/histogram/step/tree/graph/table/scatter/gauge/timeseries-bar/timeseries-line/mixed-timeseries/gantt/big-number-total/big-number-pop/time-table/pivot-table/calendar/rose/parallel/bullet/chord/compare/partition/time-pivot/horizon/paired-ttest/world-map/country-map），直接输出对应的 ```chart``` 代码块即可
 """
 
 _B_EMPTY_TEMPLATE = """你是一个友好的中文助手。用户尚未上传任何 PDF 文档。

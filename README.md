@@ -105,25 +105,30 @@ cookie-based session(starlette SessionMiddleware,签名 cookie / HttpOnly / Same
 
 ## 答案格式(图表 / 表格)
 
-LLM 在合适时机可以**直接在回答里嵌入图表**,前端基于 [xviz](https://github.com/caiyin-bit/xviz)(Apache Superset 图表引擎的独立版,内核 ECharts)渲染,**v0.5.0 共 19 种类型**:
+LLM 在合适时机可以**直接在回答里嵌入图表**,前端基于 [xviz](https://github.com/caiyin-bit/xviz)(Apache Superset 图表引擎的独立版,内核 ECharts)渲染,**v0.10.0 共 39 种类型**:
 
-| 类型 | 适用场景 |
-|---|---|
-| `pie` / `donut` | 占比(各业务板块收入占比) |
-| `bar` | 分组对比、同比 |
-| `line` / `step` | 趋势(近 5 年营收 / 阶梯状态变化) |
-| `big-number` | KPI 卡片(大数 + sparkline + 同比) |
-| **`waterfall`** | **利润分解(总收入→成本→费用→净利润),比 funnel 更专业** |
-| `funnel` | 转化漏斗(递减) |
-| `sankey` | 流向(总收入→各业务板块) |
-| `heatmap` | 二维矩阵(各板块 × 各季度同比) |
-| `treemap` / `sunburst` | 多层级占比(地区 × 国家;rectangle 或 ring 形式) |
-| `radar` | 多维度对比(板块在 增长率/毛利率/份额 多轴上的画像) |
-| `boxplot` / `histogram` | 分布(多季度数据的离散程度 / 分箱) |
-| `table` | 多行多列数据 |
-| `gauge` | 单值仪表 |
-| `scatter` | 散点(相关性) |
-| `tree` / `graph` | 层级树 / 关系网络 |
+| 家族 | 类型 | 适用场景 |
+|---|---|---|
+| 占比 | `pie` / `donut` / `rose` | 各业务板块收入占比;rose 图扇区半径编码值 |
+| 分组对比 | `bar` / `compare` | 同比环比;compare 是 multi-line 别名 |
+| 趋势 | `line` / `step` | 近 5 年营收 / 阶梯状态变化 |
+| **真时间轴** | **`timeseries-line` / `timeseries-bar` / `mixed-timeseries`** | **真正的日期/时间 x 轴(支持双 Y 轴);mixed 同时画柱+线** |
+| 项目排期 | **`gantt`** | **甘特图(任务×时间段)** |
+| KPI | `big-number` / **`big-number-total`** / **`big-number-pop`** | 大数卡片;total 自动汇总;pop 含同/环比涨跌 |
+| 财务分解 | `waterfall` | 利润分解(总收入→成本→费用→净利润) |
+| 转化 | `funnel` | 转化漏斗(递减) |
+| 流向 | `sankey` / **`chord`** | 流向带 / 圆环弦图 |
+| 二维矩阵 | `heatmap` / **`calendar`** | 板块 × 季度;calendar 365 天日历热力 |
+| 层级 | `treemap` / `sunburst` / **`partition`** / `tree` | 矩形拼贴 / 旋齿盘 / 面包屑分区 / 节点连线 |
+| 关系 | `graph` | 力导向网络图 |
+| 多维 | `radar` / **`parallel`** | 雷达 / 平行坐标(每行一条折线) |
+| 分布 | `boxplot` / `histogram` / **`paired-ttest`** | 离散程度 / 分箱 / 分组箱型对比 |
+| 对比目标 | **`bullet`** | 子弹图(KPI vs 三档基准 + 目标线) |
+| 透视 | `table` / **`time-table`** / **`pivot-table`** / **`time-pivot`** | 多行多列 / 时间透视 / 行×列+5 种聚合 |
+| 单值 | `gauge` | 单值仪表盘 |
+| 散点 | `scatter` | 相关性 |
+| 趋势平滑 | **`horizon`** | 平滑面积线变种 |
+| 地理 | **`world-map`** / **`country-map`** | 全球/国家级 choropleth(需 GeoJSON) |
 
 **LLM 输出协议:** system prompt 教 LLM 在答案中插入 ```` ```chart ```` 代码块,JSON 形如:
 ```json
@@ -144,6 +149,10 @@ LLM 在合适时机可以**直接在回答里嵌入图表**,前端基于 [xviz](
 | "用 Sankey 图展示总收入流向" | 流向带 |
 | "用 Radar 图对比各板块的增长率/毛利率/份额" | 多轴雷达图 |
 | "用 Treemap 展示按业务板块和地区的收入" | 多层矩形拼贴 |
+| "用 Gantt 图展示项目排期" | 甘特条带按 owner 分行 |
+| "用日历热力图展示全年活跃" | calendar 365 天网格 |
+| "用透视表展示各地区各季度收入" | pivot-table 行小计/列小计 |
+| "用 Bullet 图展示 Q4 KPI 完成度" | 子弹图含 poor/satisfactory/good 三档基准 + 目标 |
 
 **单点事实(如"总收入是多少")模型不会强加图表,直接给文字答案 + 引用页码。**
 

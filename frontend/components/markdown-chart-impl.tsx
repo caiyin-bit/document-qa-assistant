@@ -10,28 +10,48 @@ import { useEffect, useRef, useState } from "react";
 import {
   BarChart,
   BigNumber,
+  BigNumberPeriodOverPeriod,
+  BigNumberTotal,
   BoxPlot,
+  Bullet,
+  Calendar,
+  Chord,
+  Compare,
+  CountryMap,
   DARK_THEME,
   type DataRecord,
   Funnel,
+  Gantt,
   Gauge,
   Graph,
   Heatmap,
   Histogram,
+  Horizon,
   LIGHT_THEME,
   LineChart,
+  MixedTimeseries,
+  PairedTTest,
+  ParallelCoordinates,
+  Partition,
   PieChart,
+  PivotTable,
   type QueryData,
   Radar,
+  Rose,
   Sankey,
   Scatter,
   Step,
   Sunburst,
   Table,
   type Theme,
+  TimePivot,
+  TimeTable,
+  TimeseriesBar,
+  TimeseriesLine,
   Tree,
   Treemap,
   Waterfall,
+  WorldMap,
 } from "@minimal-viz/core";
 import type { ChartSpec } from "./markdown-chart";
 
@@ -90,13 +110,28 @@ function applyDefaults(form: Record<string, any>): Record<string, any> {
 
   if (
     t === "treemap" || t === "sunburst" || t === "waterfall" ||
-    t === "tree" || t === "graph" || t === "histogram" || t === "boxplot"
+    t === "tree" || t === "graph" || t === "histogram" || t === "boxplot" ||
+    t === "calendar" || t === "rose" || t === "bullet" || t === "chord" ||
+    t === "partition" || t === "horizon" || t === "paired-ttest" ||
+    t === "world-map" || t === "country-map"
   ) {
     if (out.showLegend === undefined) out.showLegend = false;
   }
 
-  if (t === "radar" || t === "step") {
+  if (
+    t === "radar" || t === "step" ||
+    t === "timeseries-bar" || t === "timeseries-line" ||
+    t === "mixed-timeseries" || t === "compare" || t === "parallel"
+  ) {
     if (out.legendOrientation === undefined) out.legendOrientation = "bottom";
+  }
+
+  if (t === "timeseries-bar" || t === "timeseries-line") {
+    const metrics = Array.isArray(out.metrics) ? out.metrics : [];
+    const hasSeriesCol = typeof out.seriesColumn === "string";
+    if (out.showLegend === undefined && metrics.length <= 1 && !hasSeriesCol) {
+      out.showLegend = false;
+    }
   }
 
   return out;
@@ -193,6 +228,54 @@ export function ChartLoader({ spec, themeName }: Props) {
         return <Tree {...common} formData={formData as never} />;
       case "graph":
         return <Graph {...common} formData={formData as never} />;
+      // M3 — true time-axis variants + project schedule
+      case "timeseries-bar":
+        return <TimeseriesBar {...common} formData={formData as never} />;
+      case "timeseries-line":
+        return <TimeseriesLine {...common} formData={formData as never} />;
+      case "mixed-timeseries":
+        return <MixedTimeseries {...common} formData={formData as never} />;
+      case "gantt":
+        return <Gantt {...common} formData={formData as never} />;
+      // M4 — KPI + pivot family
+      case "big-number-total":
+        return <BigNumberTotal {...common} formData={formData as never} />;
+      case "big-number-pop":
+        return (
+          <BigNumberPeriodOverPeriod {...common} formData={formData as never} />
+        );
+      case "time-table":
+        return <TimeTable {...common} formData={formData as never} />;
+      case "pivot-table":
+        return <PivotTable {...common} formData={formData as never} />;
+      // M5
+      case "calendar":
+        return <Calendar {...common} formData={formData as never} />;
+      // M6 — full-impl charts
+      case "rose":
+        return <Rose {...common} formData={formData as never} />;
+      case "parallel":
+        return <ParallelCoordinates {...common} formData={formData as never} />;
+      case "bullet":
+        return <Bullet {...common} formData={formData as never} />;
+      case "chord":
+        return <Chord {...common} formData={formData as never} />;
+      // M6 — alias charts
+      case "compare":
+        return <Compare {...common} formData={formData as never} />;
+      case "partition":
+        return <Partition {...common} formData={formData as never} />;
+      case "time-pivot":
+        return <TimePivot {...common} formData={formData as never} />;
+      case "horizon":
+        return <Horizon {...common} formData={formData as never} />;
+      case "paired-ttest":
+        return <PairedTTest {...common} formData={formData as never} />;
+      // M7-A — choropleth maps (require user-supplied GeoJSON in formData.geojson)
+      case "world-map":
+        return <WorldMap {...common} formData={formData as never} />;
+      case "country-map":
+        return <CountryMap {...common} formData={formData as never} />;
       default:
         return (
           <div
