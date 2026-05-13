@@ -376,3 +376,94 @@ async def test_template_a_nudges_on_premature_no_match_after_single_search():
     saved = mem.save_assistant_message.await_args
     assert saved.args[1] == "2025 年总收入 7517.66 亿元。"
     assert nudge_seen["value"] is True
+
+
+@pytest.mark.asyncio
+async def test_engine_records_routing_on_b_empty_path():
+    """E.3: routing payload is plumbed through to save_assistant_message
+    on the B-EMPTY final-save path (no tools, single chunk, finish=stop)."""
+    class _RecordingMem:
+        def __init__(self):
+            self.saved_routing = None
+
+        async def save_user_message(self, *a, **k):
+            return None
+
+        async def count_documents_by_status(self, sid):
+            return {"ready": 0, "processing": 0, "failed": 0}
+
+        async def list_messages(self, sid):
+            return []
+
+        async def list_documents(self, sid):
+            return []
+
+        async def save_assistant_message(self, sid, text, *, citations,
+                                          routing=None):
+            self.saved_routing = routing
+
+    class _Chunk:
+        def __init__(self, text="", finish=None):
+            self.text_delta = text
+            self.tool_call_deltas = []
+            self.finish_reason = finish
+
+    class _StubLLM:
+        async def chat_stream(self, messages, tools=None):
+            yield _Chunk(text="hi")
+            yield _Chunk(finish="stop")
+
+    mem = _RecordingMem()
+    engine = ConversationEngine(
+        mem=mem, llm=_StubLLM(), tools=MagicMock(),
+        persona="P", max_tool_iterations=3,
+    )
+    async for _ in engine.handle_stream(session_id="s", message="hello"):
+        pass
+    assert mem.saved_routing is not None
+    assert mem.saved_routing["template"] == "B-EMPTY"
+    assert mem.saved_routing["tool_call_count"] == 0
+    assert mem.saved_routing["had_any_tool_call"] is False
+    expected_keys = {
+        "template", "tool_call_count", "had_any_tool_call",
+        "all_found_false", "loop_finished_with_stop",
+        "nudged_for_premature_no_match", "elapsed_seconds", "fixed_response",
+    }
+    assert set(mem.saved_routing) == expected_keys
+    assert mem.saved_routing["fixed_response"] is False
+
+
+@pytest.mark.asyncio
+async def test_engine_records_routing_on_b_failed_path():
+    """E.3: routing payload is plumbed through on the B-FAILED canned path
+    (fixed_response=True, no tool loop entered)."""
+    class _RecordingMem:
+        def __init__(self):
+            self.saved_routing = None
+
+        async def save_user_message(self, *a, **k):
+            return None
+
+        async def count_documents_by_status(self, sid):
+            return {"ready": 0, "processing": 0, "failed": 1}
+
+        async def save_assistant_message(self, sid, text, *, citations,
+                                          routing=None):
+            self.saved_routing = routing
+
+    mem = _RecordingMem()
+    engine = ConversationEngine(
+        mem=mem, llm=MagicMock(), tools=MagicMock(), persona="P",
+    )
+    async for _ in engine.handle_stream(session_id="s", message="hi"):
+        pass
+    assert mem.saved_routing is not None
+    assert mem.saved_routing["template"] == "B-FAILED"
+    assert mem.saved_routing["tool_call_count"] == 0
+    assert mem.saved_routing["had_any_tool_call"] is False
+    assert mem.saved_routing["fixed_response"] is True
+    expected_keys = {
+        "template", "tool_call_count", "had_any_tool_call",
+        "fixed_response", "elapsed_seconds",
+    }
+    assert set(mem.saved_routing) == expected_keys

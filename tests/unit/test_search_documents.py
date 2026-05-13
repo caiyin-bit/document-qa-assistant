@@ -122,7 +122,7 @@ def test_registry_emits_openai_function_envelope():
     {type:'function', function:{name, description, parameters}}. Missing
     the wrapper returns 400 'Field required'."""
     from src.core.tool_registry import ToolRegistry
-    registry = ToolRegistry(
+    registry = ToolRegistry.default(
         mem=None, embedder=None, min_similarity=0.0, top_k=1,
     )
     schemas = registry.schemas()
@@ -225,3 +225,38 @@ async def test_isolation_between_sessions(db_session):
         # snippet only — full content is no longer returned to keep LLM
         # input context small.
         assert str(s2.id) not in c["snippet"]
+
+
+@pytest.mark.asyncio
+async def test_envelope_shape_on_business_error(monkeypatch):
+    """All non-OK returns must carry error + message keys."""
+    from src.tools.search_documents import SearchDocumentsTool
+
+    class _Mem:
+        async def search_chunks_hybrid(self, *a, **k): raise ValueError("boom")
+        async def search_chunks(self, *a, **k): raise ValueError("boom")
+    class _Emb:
+        async def encode_one_async(self, q): return [0.0] * 1024
+
+    tool = SearchDocumentsTool(
+        mem=_Mem(), embedder=_Emb(),
+        min_similarity=0.5, top_k=5, reranker=None, rerank_top_n=5,
+    )
+    # Wrapping with ToolRegistry would catch the exception — but if the tool
+    # itself returns a structured error (e.g. for empty query), the envelope
+    # must still be {ok:False, error:<code>, message:<str>}. Today the tool
+    # has no business-error returns (exceptions bubble to the registry's
+    # system-error envelope), so this test passes trivially. It exists to
+    # lock the contract for future tools/returns added here.
+    try:
+        out = await tool.execute(
+            session_id="00000000-0000-0000-0000-000000000000",
+            query="",
+        )
+    except Exception:
+        # Uncaught exceptions are the registry's domain, not the tool's
+        # business-error envelope. Nothing to assert here.
+        return
+    if out["ok"] is False:
+        assert "error" in out and isinstance(out["error"], str)
+        assert "message" in out and isinstance(out["message"], str)

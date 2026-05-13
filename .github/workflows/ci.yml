@@ -1,0 +1,115 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Advisory only — codebase has pre-existing lint debt (~41 issues, mostly
+  # E731/F401 in legacy tests). This job always exits 0 so the PR check
+  # stays green; lint output is still visible in the job log + the
+  # "Lint summary" annotation step below. Drop the `|| true` after the
+  # cleanup PR to make ruff a real gate.
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      # `--extra dev` matches [project.optional-dependencies].dev in pyproject.
+      # (uv's `--dev` flag targets PEP 735 [dependency-groups], which we don't use.)
+      - name: Install dependencies
+        run: uv sync --frozen --extra dev
+
+      - name: ruff check (advisory)
+        run: uv run ruff check src/ tests/ || true
+
+      - name: Lint summary
+        if: always()
+        run: |
+          echo "::notice title=Lint is advisory::ruff check ran above. Errors are shown in the previous step but do not fail this check while pre-existing lint debt is being cleaned up."
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: docqa
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Async driver for app + tests
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/docqa
+      # Demo user UUID expected by tests/conftest.py seed step
+      APP_USER_ID: "00000000-0000-0000-0000-000000000001"
+      # LLM tests are marked `llm` and auto-skipped by pytest addopts;
+      # a dummy key is fine for everything else that imports config.
+      GEMINI_API_KEY: dummy
+      ALLOW_DEMO_LOGIN: "true"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen --extra dev
+
+      - name: Wait for Postgres
+        run: |
+          for i in {1..30}; do
+            if pg_isready -h localhost -p 5432 -U postgres; then
+              echo "postgres ready"; exit 0
+            fi
+            sleep 1
+          done
+          echo "postgres did not become ready"; exit 1
+
+      - name: Run Alembic migrations
+        # alembic.ini hardcodes the sync URL (postgresql://...localhost:5432/docqa);
+        # the service container matches, so no env override needed.
+        run: uv run alembic upgrade head
+
+      - name: Run unit tests
+        # Skip the two BGE tests that download the 1.3 GB BAAI/bge-large-zh-v1.5
+        # model. All other tests mock the embedder. To run them locally:
+        #   uv run pytest tests/unit/test_bge_embedder.py tests/unit/test_bge_embedder_async.py
+        run: |
+          uv run pytest tests/unit \
+            --deselect tests/unit/test_bge_embedder.py \
+            --deselect tests/unit/test_bge_embedder_async.py

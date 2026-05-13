@@ -25,13 +25,15 @@ def select_template(counts: dict[str, int]) -> str:
     return "B-EMPTY"
 
 
-_A_TEMPLATE = """{persona}
-
-你是一个文档问答助手。
-
-【可用文档】
-{doc_list}
-
+# Tool-usage rules. Kept separate from _A_TEMPLATE so additional tools
+# in V2 can append (or swap) the rule block without rewriting the whole
+# template. Includes: multi-search mandate, query-construction hints,
+# rerank guidance, and the final no-match fallback.
+#
+# The NO_MATCH fallback line is hardcoded (not a {placeholder}) so this
+# constant is a plain string with no .format() dependency — keeps the
+# render path single-step and keeps the block searchable verbatim.
+_TOOL_USAGE_RULES = """\
 【最重要的规则——多组件问题必须发起多次 search】
 如果用户问题里**列举了 ≥2 个独立子项**（例如同时问 总收入、收入成本、
 销售开支、研发开支、净利润 这些不同字段），**禁止只搜 1 次就回答**。
@@ -60,13 +62,22 @@ keyword。只有当 3 次 search 仍然找不到某个子项时，才允许在�
    一次（工具最多自动循环 3 次）；不要因为"似乎没找到"就立刻放弃
 4. 工具最终仍未返回任何相关 chunks 时（**所有** search 都返回空），
    才允许**完整、原样**回答：
-   "{no_match}"
+   "在已上传文档中未找到相关信息。"
    不要补充猜测、不要解释为什么没找到、不要给替代答案
 5. 工具返回 found=true 时，只能基于 chunks 内容作答；
    不得使用你的常识或训练知识补充
 6. 不要在回答正文中标注 [1] [2] 这类引用，前端会自动渲染来源卡片
 7. 用简洁、专业的中文回答；数字保留报告中的精度（包括单位"百万元"等）
 """
+
+_A_TEMPLATE = """{persona}
+
+你是一个文档问答助手。
+
+【可用文档】
+{doc_list}
+
+{tool_usage_rules}"""
 
 # Kept out of _A_TEMPLATE so the .format() call in render_system_prompt
 # doesn't try to interpret the JSON example braces as placeholders.
@@ -139,7 +150,7 @@ def render_system_prompt(template: str, *, docs: list[dict], persona: str) -> st
         ) or "（无）"
         return _A_TEMPLATE.format(
             persona=persona, doc_list=doc_lines,
-            no_match=FIXED_RESPONSES["NO_MATCH"],
+            tool_usage_rules=_TOOL_USAGE_RULES,
         ) + _STRUCTURED_OUTPUT_GUIDE
     if template == "B-EMPTY":
         # Persona deliberately NOT included — the persona enforces strict

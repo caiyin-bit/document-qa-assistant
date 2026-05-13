@@ -98,7 +98,7 @@ def make_router(deps: ChatDependencies) -> APIRouter:
 
     def _build_engine(db: AsyncSession) -> ConversationEngine:
         mem = _build_memory(db)
-        tools = ToolRegistry(
+        tools = ToolRegistry.default(
             mem=mem,
             embedder=deps.embedder,
             min_similarity=deps.min_similarity,

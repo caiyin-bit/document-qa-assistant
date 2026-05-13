@@ -58,6 +58,7 @@ class Message(Base):
     tool_calls: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     tool_call_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
     citations: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    routing: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
