@@ -81,3 +81,15 @@ def test_tool_usage_rules_absent_from_B_templates():
         # match on a distinctive substring of the rules block instead.
         assert _TOOL_USAGE_RULES.strip() not in rendered
         assert "多组件问题必须发起多次 search" not in rendered
+
+
+def test_tool_usage_rules_no_match_matches_fixed_responses():
+    """Guard against drift: the NO_MATCH text quoted inside _TOOL_USAGE_RULES
+    must stay byte-identical to FIXED_RESPONSES["NO_MATCH"]. Both live in
+    src/core/prompt_templates.py; this asserts that they agree."""
+    from src.core.prompt_templates import _TOOL_USAGE_RULES, FIXED_RESPONSES
+    assert FIXED_RESPONSES["NO_MATCH"] in _TOOL_USAGE_RULES, (
+        f"NO_MATCH text drifted: FIXED_RESPONSES has "
+        f"{FIXED_RESPONSES['NO_MATCH']!r} but _TOOL_USAGE_RULES does not "
+        "contain it. Update both, or move to .format(no_match=...) injection."
+    )
