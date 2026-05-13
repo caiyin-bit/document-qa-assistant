@@ -10,6 +10,35 @@ from src.models.schemas import (
     Session, SessionDocument, User,
 )
 
+from collections import defaultdict
+
+
+def _rrf_fuse_scores(
+    stages: list[list[dict]], *, key: str = "chunk_id", k: int = 60,
+) -> dict[str, float]:
+    """Reciprocal Rank Fusion across N rank-ordered stages.
+
+    Each stage is a list of dict-like hits keyed by `key` (default
+    "chunk_id"). Within one stage, the same id at multiple ranks
+    contributes only its best (lowest) rank — RRF semantic: each
+    stage votes at most once per item.
+
+    Caller must sort the returned scores with an explicit tiebreak,
+    e.g. `sorted(scores, key=lambda cid: (-scores[cid], cid))`. The
+    dict insertion order is NOT a stable tiebreak across runs.
+    """
+    scores: dict[str, float] = defaultdict(float)
+    for stage in stages:
+        seen_in_stage: set[str] = set()
+        for rank, row in enumerate(stage, start=1):
+            row_id = row[key]
+            if row_id in seen_in_stage:
+                continue
+            seen_in_stage.add(row_id)
+            scores[row_id] += 1.0 / (k + rank)
+    return dict(scores)
+
+
 DEMO_USER_ID = UUID("00000000-0000-0000-0000-000000000001")
 
 
