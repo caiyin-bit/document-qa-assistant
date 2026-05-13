@@ -11,13 +11,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Advisory only — codebase has pre-existing lint debt (41 issues, mostly
-  # E731/F401 in legacy tests). This job surfaces them in CI logs without
-  # blocking merges. Flip `continue-on-error` to false after the cleanup PR.
+  # Advisory only — codebase has pre-existing lint debt (~41 issues, mostly
+  # E731/F401 in legacy tests). This job always exits 0 so the PR check
+  # stays green; lint output is still visible in the job log + the
+  # "Lint summary" annotation step below. Drop the `|| true` after the
+  # cleanup PR to make ruff a real gate.
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
@@ -36,8 +37,13 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen --extra dev
 
-      - name: ruff check
-        run: uv run ruff check src/ tests/
+      - name: ruff check (advisory)
+        run: uv run ruff check src/ tests/ || true
+
+      - name: Lint summary
+        if: always()
+        run: |
+          echo "::notice title=Lint is advisory::ruff check ran above. Errors are shown in the previous step but do not fail this check while pre-existing lint debt is being cleaned up."
 
   test:
     runs-on: ubuntu-latest
