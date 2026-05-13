@@ -424,6 +424,13 @@ async def test_engine_records_routing_on_b_empty_path():
     assert mem.saved_routing["template"] == "B-EMPTY"
     assert mem.saved_routing["tool_call_count"] == 0
     assert mem.saved_routing["had_any_tool_call"] is False
+    expected_keys = {
+        "template", "tool_call_count", "had_any_tool_call",
+        "all_found_false", "loop_finished_with_stop",
+        "nudged_for_premature_no_match", "elapsed_seconds", "fixed_response",
+    }
+    assert set(mem.saved_routing) == expected_keys
+    assert mem.saved_routing["fixed_response"] is False
 
 
 @pytest.mark.asyncio
@@ -455,3 +462,8 @@ async def test_engine_records_routing_on_b_failed_path():
     assert mem.saved_routing["tool_call_count"] == 0
     assert mem.saved_routing["had_any_tool_call"] is False
     assert mem.saved_routing["fixed_response"] is True
+    expected_keys = {
+        "template", "tool_call_count", "had_any_tool_call",
+        "fixed_response", "elapsed_seconds",
+    }
+    assert set(mem.saved_routing) == expected_keys

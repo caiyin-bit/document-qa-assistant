@@ -54,6 +54,7 @@ class ConversationEngine:
                     "tool_call_count": 0,
                     "had_any_tool_call": False,
                     "fixed_response": True,
+                    "elapsed_seconds": round(_t.monotonic() - _t0, 3),
                 },
             )
             yield StreamEvent.done()
@@ -272,6 +273,7 @@ class ConversationEngine:
             "loop_finished_with_stop": loop_finished_with_stop,
             "nudged_for_premature_no_match": nudged_for_premature_no_match,
             "elapsed_seconds": round(_t.monotonic() - _t0, 3),
+            "fixed_response": False,
         }
         await self.mem.save_assistant_message(
             session_id, final_text_buf, citations=unique_citations,
