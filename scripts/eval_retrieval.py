@@ -177,7 +177,8 @@ async def main_async(args: argparse.Namespace) -> int:
     with FIXTURE_PATH.open(encoding="utf-8") as f:
         fixture = yaml.safe_load(f)
 
-    sm = async_sessionmaker(get_engine(), expire_on_commit=False)
+    engine = get_engine()
+    sm = async_sessionmaker(engine, expire_on_commit=False)
     embedder = BgeEmbedder()
 
     try:
@@ -193,6 +194,18 @@ async def main_async(args: argparse.Namespace) -> int:
             session_id, chunk_key_to_id = await _load_fixture(
                 db, embedder, user_id, fixture,
             )
+
+        # Validate fixture cross-references before the metrics loop so a
+        # typo in expected_chunk_keys produces a clear error instead of a
+        # mid-loop KeyError stack trace.
+        known_keys = set(chunk_key_to_id)
+        for q in fixture["queries"]:
+            missing = set(q["expected_chunk_keys"]) - known_keys
+            if missing:
+                raise SystemExit(
+                    f"fixture error: query {q['id']!r} references unknown "
+                    f"chunk_keys {sorted(missing)} — fix tests/fixtures/retrieval_eval.yaml"
+                )
 
         # Pass 3: run queries across modes
         metrics: dict[str, dict] = {}
@@ -223,6 +236,22 @@ async def main_async(args: argparse.Namespace) -> int:
                 }
     finally:
         embedder.close()
+        await engine.dispose()
+
+    # Sanity check: if every mode/query returned 0 recall@5, something is
+    # structurally broken (e.g. chunk_id type mismatch between search results
+    # and the fixture expected set) rather than a retrieval-quality issue.
+    nothing_matched = all(
+        p["r@5"] == 0.0
+        for mode_metrics in metrics.values()
+        for p in mode_metrics["per_query"]
+    )
+    if nothing_matched:
+        raise SystemExit(
+            "all modes returned 0 recall@5 across all queries — likely a "
+            "chunk_id type mismatch between search results and the fixture "
+            "expected set, not a retrieval-quality issue"
+        )
 
     print(f"{'mode':<10} {'R@1':>6} {'R@3':>6} {'R@5':>6} {'MRR':>6}")
     print("-" * 40)
