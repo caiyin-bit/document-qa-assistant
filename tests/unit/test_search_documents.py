@@ -122,7 +122,7 @@ def test_registry_emits_openai_function_envelope():
     {type:'function', function:{name, description, parameters}}. Missing
     the wrapper returns 400 'Field required'."""
     from src.core.tool_registry import ToolRegistry
-    registry = ToolRegistry(
+    registry = ToolRegistry.default(
         mem=None, embedder=None, min_similarity=0.0, top_k=1,
     )
     schemas = registry.schemas()
