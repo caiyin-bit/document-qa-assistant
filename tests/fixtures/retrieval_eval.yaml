@@ -1,0 +1,65 @@
+# Retrieval evaluation fixture. Hand-curated so chunk text overlaps with
+# realistic query patterns (Chinese-financial-report domain). Each chunk
+# is identified by `chunk_key` (deterministic, used in expected lists).
+#
+# How it's used: scripts/eval_retrieval.py creates one eval user + one
+# session, inserts the documents below as `documents`, then chunks them
+# directly into `document_chunks` (one chunk row per `chunks[]` entry),
+# embedding the content with the live BGE embedder at run-time.
+
+documents:
+  - doc_key: doc_report_2025
+    filename: "2025年年报.pdf"
+    page_count: 4
+    chunks:
+      - chunk_key: report25_p1_employees
+        page_no: 1
+        content: "截至2025年12月31日，本集团雇员总数为115,849人。"
+      - chunk_key: report25_p2_revenue
+        page_no: 2
+        content: "2025年全年总收入为人民币7,517亿元，同比增长13.9%。"
+      - chunk_key: report25_p3_cost
+        page_no: 3
+        content: "2025年收入成本合计3,294亿元，毛利率约为56.2%。"
+      - chunk_key: report25_p4_profit
+        page_no: 4
+        content: "归属于本公司股东的净利润达到1,946亿元，同比增长68.7%。"
+
+  - doc_key: doc_report_2024
+    filename: "2024年年报.pdf"
+    page_count: 3
+    chunks:
+      - chunk_key: report24_p1_employees
+        page_no: 1
+        content: "截至2024年12月31日，集团雇员总数为110,558人，较上年增加3,720人。"
+      - chunk_key: report24_p2_revenue
+        page_no: 2
+        content: "2024年全年总收入6,602亿元，同比增长8.4%。"
+      - chunk_key: report24_p3_rd
+        page_no: 3
+        content: "2024年研发开支706亿元，占总收入比例10.7%。"
+
+queries:
+  - id: q_employees_25
+    query: "员工总数 雇员人数 员工数量 集团雇员 2025"
+    expected_chunk_keys: [report25_p1_employees]
+
+  - id: q_revenue_25
+    query: "总收入 营业收入 2025"
+    expected_chunk_keys: [report25_p2_revenue]
+
+  - id: q_cost_25
+    query: "收入成本 经营成本 销售成本 毛利率"
+    expected_chunk_keys: [report25_p3_cost]
+
+  - id: q_profit_25
+    query: "净利润 归母净利润 股东净利润 2025"
+    expected_chunk_keys: [report25_p4_profit]
+
+  - id: q_rd_24
+    query: "研发开支 研发费用 研发投入 2024"
+    expected_chunk_keys: [report24_p3_rd]
+
+  - id: q_employees_24
+    query: "员工总数 雇员人数 2024"
+    expected_chunk_keys: [report24_p1_employees]
