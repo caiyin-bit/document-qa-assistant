@@ -127,10 +127,12 @@ class MemoryService:
     async def save_assistant_message(
         self, session_id: UUID, content: str,
         citations: list | None = None, tool_calls: dict | None = None,
+        routing: dict | None = None,
     ) -> Message:
         m = Message(
             session_id=session_id, role=MessageRole.assistant,
             content=content, citations=citations, tool_calls=tool_calls,
+            routing=routing,
         )
         self.db.add(m)
         await self.db.commit()

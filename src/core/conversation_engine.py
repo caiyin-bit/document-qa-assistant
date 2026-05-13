@@ -47,7 +47,15 @@ class ConversationEngine:
             fixed = FIXED_RESPONSES[template]
             yield StreamEvent.text(delta=fixed)
             yield StreamEvent.citations(chunks=[])
-            await self.mem.save_assistant_message(session_id, fixed, citations=[])
+            await self.mem.save_assistant_message(
+                session_id, fixed, citations=[],
+                routing={
+                    "template": template,
+                    "tool_call_count": 0,
+                    "had_any_tool_call": False,
+                    "fixed_response": True,
+                },
+            )
             yield StreamEvent.done()
             return
 
@@ -256,8 +264,18 @@ class ConversationEngine:
             seen.add(key)
             unique_citations.append(c)
 
+        routing = {
+            "template": template,
+            "tool_call_count": tool_call_count,
+            "had_any_tool_call": had_any_tool_call,
+            "all_found_false": all_found_false,
+            "loop_finished_with_stop": loop_finished_with_stop,
+            "nudged_for_premature_no_match": nudged_for_premature_no_match,
+            "elapsed_seconds": round(_t.monotonic() - _t0, 3),
+        }
         await self.mem.save_assistant_message(
             session_id, final_text_buf, citations=unique_citations,
+            routing=routing,
         )
         yield StreamEvent.citations(chunks=unique_citations)
         log.info("chat.done text_len=%d citations=%d total=%.2fs",
