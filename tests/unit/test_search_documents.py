@@ -1,6 +1,5 @@
 import os
 import pytest
-import pytest_asyncio
 
 os.environ.setdefault("GEMINI_API_KEY", "dummy")
 os.environ.setdefault("APP_USER_ID", "00000000-0000-0000-0000-000000000001")

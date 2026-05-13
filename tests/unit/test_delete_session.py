@@ -1,6 +1,5 @@
 """DELETE /sessions/{id} — race-safety and cascade behavior."""
 import os
-from pathlib import Path
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport

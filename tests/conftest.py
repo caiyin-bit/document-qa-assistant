@@ -5,10 +5,12 @@ from __future__ import annotations
 from dotenv import load_dotenv
 
 # Load .env at test session start so GEMINI_API_KEY etc. are available.
+# The imports below intentionally come after load_dotenv() so anything
+# imported by src.* sees the populated environment.
 load_dotenv()
 
-import pytest_asyncio
-from sqlalchemy.ext.asyncio import AsyncSession
+import pytest_asyncio  # noqa: E402
+from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 
 
 @pytest_asyncio.fixture

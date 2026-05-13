@@ -36,8 +36,10 @@ async def test_phase_sequence_for_single_page_with_chunks():
     embedder = MagicMock()
     embedder.embed_batch_async = AsyncMock(return_value=[[0.1] * 1024])
 
-    parser = lambda path: iter([(1, "some content")])
-    chunker = lambda text, page_no: [{"content": text, "page_no": page_no}]
+    def parser(path):
+        return iter([(1, "some content")])
+    def chunker(text, page_no):
+        return [{"content": text, "page_no": page_no}]
 
     await _ingest_document(
         "doc-id", path=Path("/tmp/x.pdf"),
@@ -73,8 +75,10 @@ async def test_phase_loading_set_before_first_page():
     embedder = MagicMock()
     embedder.embed_batch_async = AsyncMock(return_value=[[0.1] * 1024])
 
-    parser = lambda path: iter([(1, "x")])
-    chunker = lambda text, page_no: [{"content": text, "page_no": page_no}]
+    def parser(path):
+        return iter([(1, "x")])
+    def chunker(text, page_no):
+        return [{"content": text, "page_no": page_no}]
 
     await _ingest_document(
         "doc-id", path=Path("/tmp/x.pdf"),
@@ -98,8 +102,10 @@ async def test_failure_path_clears_phase():
     mem.delete_chunks_for_document = AsyncMock()
 
     embedder = MagicMock()
-    parser = lambda path: iter([(1, ""), (2, "")])
-    chunker = lambda text, page_no: []  # always empty → triggers failed path
+    def parser(path):
+        return iter([(1, ""), (2, "")])
+    def chunker(text, page_no):
+        return []  # always empty → triggers failed path
 
     await _ingest_document(
         "doc-id", path=Path("/tmp/x.pdf"),

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, call
-from uuid import UUID, uuid4
+from unittest.mock import AsyncMock, MagicMock
+from uuid import UUID
 
 import pytest
 

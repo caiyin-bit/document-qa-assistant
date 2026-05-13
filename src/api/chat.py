@@ -9,9 +9,16 @@ from datetime import datetime
 from pathlib import Path
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from src.api.auth import require_user
+from src.api.sse import SSEStreamingResponse, to_sse_bytes
+from src.core.conversation_engine import ConversationEngine
+from src.core.memory_service import MemoryService
+from src.core.persona_loader import PersonaLoader
+from src.core.tool_registry import ToolRegistry
 
 log = logging.getLogger(__name__)
 UPLOADS_DIR = Path("data/uploads")
@@ -27,13 +34,6 @@ def _derive_title(first_user_msg: str | None) -> str:
     if len(text) <= _TITLE_MAX_CHARS:
         return text
     return text[:_TITLE_MAX_CHARS] + "…"
-
-from src.api.auth import require_user
-from src.api.sse import SSEStreamingResponse, to_sse_bytes
-from src.core.conversation_engine import ConversationEngine
-from src.core.memory_service import MemoryService
-from src.core.persona_loader import PersonaLoader
-from src.core.tool_registry import ToolRegistry
 
 
 class ChatRequest(BaseModel):

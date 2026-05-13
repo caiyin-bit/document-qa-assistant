@@ -7,7 +7,7 @@ from pathlib import Path
 from uuid import UUID
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class AppConfig(BaseModel):

@@ -18,7 +18,8 @@ async def _run_engine_capturing_tools(counts: dict[str, int]):
         yield _Chunk(text="ok")
         yield _Chunk(finish="stop")
 
-    llm = MagicMock(); llm.chat_stream = fake_chat_stream
+    llm = MagicMock()
+    llm.chat_stream = fake_chat_stream
     mem = MagicMock()
     mem.count_documents_by_status = AsyncMock(return_value=counts)
     mem.list_documents = AsyncMock(return_value=[])
@@ -93,7 +94,8 @@ async def test_template_a_with_tool_found_true_emits_citations():
             yield _LLMChunk(text_delta="腾讯 2025 年总营收为 6,605 亿元。")
             yield _LLMChunk(finish_reason="stop")
 
-    llm = MagicMock(); llm.chat_stream = fake_chat_stream
+    llm = MagicMock()
+    llm.chat_stream = fake_chat_stream
 
     tools = MagicMock()
     tools.schemas = MagicMock(return_value=[])
@@ -153,7 +155,8 @@ async def test_template_a_with_tool_found_false_emits_empty_citations():
             yield _LLMChunk(text_delta="在已上传文档中未找到相关信息。")
             yield _LLMChunk(finish_reason="stop")
 
-    llm = MagicMock(); llm.chat_stream = fake_chat_stream
+    llm = MagicMock()
+    llm.chat_stream = fake_chat_stream
     tools = MagicMock()
     tools.schemas = MagicMock(return_value=[])
     tools.execute = AsyncMock(return_value={"ok": True, "found": False, "chunks": []})
@@ -209,7 +212,8 @@ async def test_template_a_accumulates_fragmented_tool_call_deltas():
         captured_args["query"] = args.get("query")
         return {"ok": True, "found": False, "chunks": []}
 
-    llm = MagicMock(); llm.chat_stream = fake_chat_stream
+    llm = MagicMock()
+    llm.chat_stream = fake_chat_stream
     tools = MagicMock()
     tools.schemas = MagicMock(return_value=[])
     tools.execute = capture_execute
@@ -263,7 +267,8 @@ async def test_template_a_falls_back_to_no_tools_when_loop_exhausts():
             yield _LLMChunk(text_delta="抱歉，多次检索后仍未找到。")
             yield _LLMChunk(finish_reason="stop")
 
-    llm = MagicMock(); llm.chat_stream = fake_chat_stream
+    llm = MagicMock()
+    llm.chat_stream = fake_chat_stream
     tools = MagicMock()
     tools.schemas = MagicMock(return_value=[])
     tools.execute = AsyncMock(return_value={"ok": True, "found": False, "chunks": []})
@@ -344,7 +349,8 @@ async def test_template_a_nudges_on_premature_no_match_after_single_search():
             yield _LLMChunk(text_delta="2025 年总收入 7517.66 亿元。")
             yield _LLMChunk(finish_reason="stop")
 
-    llm = MagicMock(); llm.chat_stream = fake_chat_stream
+    llm = MagicMock()
+    llm.chat_stream = fake_chat_stream
     tools = MagicMock()
     tools.schemas = MagicMock(return_value=[])
     tools.execute = AsyncMock(return_value={
