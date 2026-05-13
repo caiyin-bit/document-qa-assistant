@@ -47,3 +47,38 @@ def test_rrf_three_stages_generalization():
     scores = _rrf_fuse_scores([s1, s2, s3], k=60)
     assert pytest.approx(scores["x"], rel=1e-9) == 1 / 61 + 1 / 61
     assert pytest.approx(scores["y"], rel=1e-9) == 1 / 61 + 1 / 62
+
+
+def test_hybrid_uses_helper_and_tiebreaks_by_chunk_id(monkeypatch):
+    """search_chunks_hybrid must call _rrf_fuse_scores and tiebreak by chunk_id ASC."""
+    import asyncio
+    from src.core.memory_service import MemoryService
+
+    svc = MemoryService.__new__(MemoryService)  # bypass __init__
+    svc.db = None  # not used by the patched methods
+
+    # Both stages return the same chunks at swapped ranks → identical fused scores.
+    stage_vec = [
+        {"chunk_id": "zzzz", "doc_id": "d1", "filename": "f", "page_no": 1, "content": "...", "score": 0.9},
+        {"chunk_id": "aaaa", "doc_id": "d1", "filename": "f", "page_no": 2, "content": "...", "score": 0.8},
+    ]
+    stage_kw = [
+        {"chunk_id": "aaaa", "doc_id": "d1", "filename": "f", "page_no": 2, "content": "...", "score": 0.9},
+        {"chunk_id": "zzzz", "doc_id": "d1", "filename": "f", "page_no": 1, "content": "...", "score": 0.8},
+    ]
+
+    async def fake_vec(*args, **kwargs): return stage_vec
+    async def fake_kw(*args, **kwargs): return stage_kw
+
+    monkeypatch.setattr(svc, "search_chunks", fake_vec)
+    monkeypatch.setattr(svc, "search_chunks_keyword", fake_kw)
+
+    out = asyncio.run(svc.search_chunks_hybrid(
+        session_id="00000000-0000-0000-0000-000000000000",
+        query="x", query_embedding=[0.0] * 1024,
+        top_k=2, min_similarity=0.0,
+    ))
+    # Both chunks tie on RRF score; "aaaa" < "zzzz" lexicographically.
+    assert [r["chunk_id"] for r in out] == ["aaaa", "zzzz"]
+    # Score is the RRF score, not the per-stage similarity.
+    assert out[0]["score"] == pytest.approx(1 / 61 + 1 / 62, rel=1e-9)

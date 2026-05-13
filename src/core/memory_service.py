@@ -404,18 +404,18 @@ class MemoryService:
         self, session_id: UUID, *, query: str, query_embedding: list[float],
         top_k: int, min_similarity: float, rrf_k: int = 60,
     ) -> list[dict]:
-        """Run vector + keyword recall in parallel and fuse via Reciprocal
-        Rank Fusion. Returns merged top results ordered by RRF score.
+        """Hybrid vector + trigram recall fused via Reciprocal Rank Fusion.
 
-        RRF formula: score(d) = Σ over lists L of 1 / (k + rank_L(d)).
-        k=60 is the standard default from the original RRF paper.
-        Robust because it ignores raw scores (which differ in scale
-        between cosine ∈ [-1,1] and trigram similarity ∈ [0,1]).
+        Uses the generalized `_rrf_fuse_scores` helper so additional recall
+        stages (e.g. BM25, second-pass rerank) can be added without
+        rewriting the fusion logic. Explicit tiebreak by chunk_id keeps
+        ordering deterministic across runs.
+
+        Stages run sequentially, not in parallel: both queries share
+        `self.db` (one AsyncSession) and SQLAlchemy raises on concurrent
+        operations against the same session. Cost is ~10ms — both are
+        GIN-index lookups.
         """
-        # Sequential, not gathered: both queries share self.db (one
-        # AsyncSession), and SQLAlchemy raises InvalidRequestError on
-        # concurrent operations against the same session. The cost is
-        # ~10ms — both queries are GIN-index lookups.
         vec_hits = await self.search_chunks(
             session_id, query_embedding=query_embedding,
             top_k=top_k, min_similarity=min_similarity,
@@ -424,27 +424,25 @@ class MemoryService:
             session_id, query=query, top_k=top_k,
         )
 
-        fused: dict[str, dict] = {}
-        for rank, hit in enumerate(vec_hits, start=1):
-            fused[hit["chunk_id"]] = {
-                "rrf_score": 1.0 / (rrf_k + rank),
-                "hit": hit,
-            }
-        for rank, hit in enumerate(kw_hits, start=1):
-            cid = hit["chunk_id"]
-            if cid in fused:
-                fused[cid]["rrf_score"] += 1.0 / (rrf_k + rank)
-            else:
-                fused[cid] = {
-                    "rrf_score": 1.0 / (rrf_k + rank),
-                    "hit": hit,
-                }
-        # Sort fused results by RRF score (higher = better) and overwrite
-        # `score` so downstream rerank/dedup logic stays uniform.
-        ordered = sorted(fused.values(), key=lambda x: x["rrf_score"], reverse=True)
+        fused_scores = _rrf_fuse_scores([vec_hits, kw_hits], k=rrf_k)
+
+        # First-occurrence wins for the hit payload; fields like content/snippet
+        # are the same across stages for a given chunk_id (same row in DB).
+        by_id: dict[str, dict] = {}
+        for hit in (*vec_hits, *kw_hits):
+            if hit["chunk_id"] not in by_id:
+                by_id[hit["chunk_id"]] = hit
+
+        # Explicit tiebreak: (score DESC, chunk_id ASC). Without this, ties
+        # resolve via dict insertion order, which is consistent within one
+        # process but masks real coverage bugs in the eval harness.
+        fused_ids = sorted(
+            fused_scores, key=lambda cid: (-fused_scores[cid], cid),
+        )[:top_k]
+
         out = []
-        for item in ordered[:top_k]:
-            row = dict(item["hit"])
-            row["score"] = item["rrf_score"]
+        for cid in fused_ids:
+            row = dict(by_id[cid])
+            row["score"] = fused_scores[cid]
             out.append(row)
         return out
