@@ -19,6 +19,11 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    # Published so host-side worker / backend (when running outside the
+    # container during local dev) can reach the queue. Containerized
+    # services use the compose network alias `redis` regardless.
+    ports:
+      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 3s
