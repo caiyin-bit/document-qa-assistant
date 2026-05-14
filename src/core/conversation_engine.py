@@ -4,17 +4,17 @@ import json
 import logging
 from typing import AsyncIterator
 
+from src.api.sse import StreamEvent
+from src.core.prompt_templates import (
+    FIXED_RESPONSES, render_system_prompt, select_template,
+)
+
 # Hard upper bound per LLM iteration. SiliconFlow's HTTP-level keepalives
 # can keep the stream "alive" indefinitely without sending any actual
 # token chunks, defeating httpx's `read` timeout. We enforce an
 # application-level deadline so a stalled stream is forced into the
 # fallback path instead of hanging /chat/stream forever.
 LLM_ITER_TIMEOUT_S = 120
-
-from src.api.sse import StreamEvent
-from src.core.prompt_templates import (
-    FIXED_RESPONSES, render_system_prompt, select_template,
-)
 
 log = logging.getLogger(__name__)
 

@@ -20,8 +20,10 @@ async def test_scanned_pdf_marks_failed():
     mem.update_document = AsyncMock()
     mem.delete_chunks_for_document = AsyncMock()
     embedder = MagicMock()
-    parser = lambda path: iter([(1, ""), (2, ""), (3, "")])
-    chunker = lambda text, page_no: []
+    def parser(path):
+        return iter([(1, ""), (2, ""), (3, "")])
+    def chunker(text, page_no):
+        return []
 
     await _ingest_document("doc-id", path=Path("/tmp/x.pdf"),
                             mem=mem, embedder=embedder,

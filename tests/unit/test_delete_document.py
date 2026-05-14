@@ -66,8 +66,8 @@ async def test_delete_ready_succeeds_and_cascades(client, db_session):
 
     # The HTTP call used a separate session; bypass the identity map cache by
     # issuing a fresh SELECT instead of db.get().
-    from sqlalchemy import select as sa_select, text as sa_text
-    from src.models.schemas import Document as DocumentModel, DocumentChunk
+    from sqlalchemy import select as sa_select
+    from src.models.schemas import Document as DocumentModel
     result = await db_session.execute(
         sa_select(DocumentModel).where(DocumentModel.id == doc.id)
     )

@@ -1,5 +1,4 @@
 import pytest
-from uuid import uuid4
 from src.core.memory_service import MemoryService
 from src.models.schemas import DocumentStatus
 
@@ -50,7 +49,7 @@ async def test_list_documents_for_session(mem, user, session_obj):
     s2 = await mem.create_session(user.id)
     d1 = await mem.create_document(user_id=user.id, session_id=session_obj.id,
                                     filename="a.pdf", page_count=1, byte_size=1)
-    d2 = await mem.create_document(user_id=user.id, session_id=s2.id,
+    await mem.create_document(user_id=user.id, session_id=s2.id,
                                     filename="b.pdf", page_count=1, byte_size=1)
     rows = await mem.list_documents(session_obj.id)
     assert {r.id for r in rows} == {d1.id}
@@ -59,7 +58,7 @@ async def test_list_documents_for_session(mem, user, session_obj):
 async def test_count_documents_by_status(mem, user, session_obj):
     d1 = await mem.create_document(user_id=user.id, session_id=session_obj.id,
                                     filename="a.pdf", page_count=1, byte_size=1)
-    d2 = await mem.create_document(user_id=user.id, session_id=session_obj.id,
+    await mem.create_document(user_id=user.id, session_id=session_obj.id,
                                     filename="b.pdf", page_count=1, byte_size=1)
     await mem.update_document(d1.id, status=DocumentStatus.ready)
     counts = await mem.count_documents_by_status(session_obj.id)
