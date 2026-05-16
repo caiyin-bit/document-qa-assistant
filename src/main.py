@@ -52,11 +52,17 @@ def create_app(deps: ChatDependencies) -> FastAPI:
         https_only=False,  # dev — flip to True behind TLS
     )
     # CORS: credentials must be true for the cookie to flow on the
-    # cross-origin (3000 → 8000) requests; that requires a concrete
-    # origin (no "*").
+    # cross-origin (frontend → 8000) requests; that requires concrete
+    # origins (no "*"). Defaults to the standard dev port; override with
+    # CORS_ORIGINS (comma-separated) when the frontend runs elsewhere.
+    cors_origins = [
+        o.strip()
+        for o in os.environ.get("CORS_ORIGINS", "http://localhost:3000").split(",")
+        if o.strip()
+    ]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:3000"],
+        allow_origins=cors_origins,
         allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
         allow_headers=["*"],
         allow_credentials=True,
