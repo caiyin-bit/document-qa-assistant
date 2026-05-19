@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 
 from sqlalchemy import select
 
@@ -20,6 +21,11 @@ from src.connector.token_refresh import refresh_if_due
 from src.models.schemas import IntegrationStatus, PlatformIntegration
 
 log = logging.getLogger(__name__)
+
+
+def _allowlist() -> set[str]:
+    raw = os.getenv("INTEGRATION_HOST_ALLOWLIST", "")
+    return {h.strip().lower() for h in raw.split(",") if h.strip()}
 
 
 class ConnectorSupervisor:
@@ -73,6 +79,7 @@ class ConnectorSupervisor:
                         "inbound_capabilities", []),
                     heartbeat_seconds=r.manifest_snapshot["connection"].get(
                         "heartbeat_seconds", 30),
+                    allowlist=_allowlist(),
                     should_stop=lambda rid=rid: (
                         self._stop or rid not in self._active_ids),
                 )

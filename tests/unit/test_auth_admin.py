@@ -35,3 +35,13 @@ async def test_require_admin_allows_admin(db_session):
     await db_session.commit()
     req = _Req({"user_id": str(u.id)})
     assert await require_admin(req, db_session) == u.id
+
+
+@pytest.mark.asyncio
+async def test_require_admin_rejects_implicit_demo(db_session):
+    # No user_id in session → demo fallback → must NOT be admin even if a
+    # demo user row exists.
+    req = _Req(None)
+    with pytest.raises(HTTPException) as ei:
+        await require_admin(req, db_session)
+    assert ei.value.status_code in (401, 403)

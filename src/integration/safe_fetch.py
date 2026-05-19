@@ -38,14 +38,17 @@ def _ip_is_blocked(ip_str: str) -> bool:
     return False
 
 
-def _check_url(url: str, allowlist: set[str]) -> str:
+def assert_url_allowed(url: str, *, allowlist: set[str],
+                       schemes: set[str]) -> str:
+    """Scheme + host-allowlist + DNS→blocked-IP guard. Raises
+    SafeFetchError on any violation. Reusable by the connector
+    (re-call on every reconnect to defeat DNS rebinding)."""
     parts = urlparse(url)
-    if parts.scheme != "https":
-        raise SafeFetchError(f"scheme must be https: {url}")
+    if parts.scheme not in schemes:
+        raise SafeFetchError(f"scheme not allowed ({parts.scheme!r}): {url}")
     host = (parts.hostname or "").lower()
     if not host or host not in {h.lower() for h in allowlist}:
         raise SafeFetchError(f"host not in allowlist: {host!r}")
-    # Resolve and reject if ANY address is blocked (DNS-rebind defence).
     try:
         infos = socket.getaddrinfo(host, parts.port or 443)
     except socket.gaierror as e:
@@ -56,17 +59,28 @@ def _check_url(url: str, allowlist: set[str]) -> str:
     return host
 
 
+def _check_url(url: str, allowlist: set[str]) -> str:
+    return assert_url_allowed(url, allowlist=allowlist, schemes={"https"})
+
+
 async def _request(method: str, url: str, allowlist: set[str],
                    json_body: dict | None = None) -> httpx.Response:
     _check_url(url, allowlist)
     async with httpx.AsyncClient(
         follow_redirects=False, timeout=_TIMEOUT_S,
     ) as client:
-        resp = await client.request(method, url, json=json_body)
-    if resp.is_redirect:
-        raise SafeFetchError(f"redirect not allowed: {resp.status_code} {url}")
-    if len(resp.content) > _MAX_BYTES:
-        raise SafeFetchError("response too large")
+        async with client.stream(method, url, json=json_body) as resp:
+            if 300 <= resp.status_code < 400:
+                raise SafeFetchError(
+                    f"redirect not allowed: {resp.status_code} {url}")
+            chunks: list[bytes] = []
+            total = 0
+            async for chunk in resp.aiter_bytes():
+                total += len(chunk)
+                if total > _MAX_BYTES:
+                    raise SafeFetchError("response too large")
+                chunks.append(chunk)
+            resp._content = b"".join(chunks)  # noqa: SLF001 — finalize body
     return resp
 
 

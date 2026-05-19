@@ -16,6 +16,7 @@ import logging
 import websockets
 
 from src.connector.inbound import InboundError, handle_inbound
+from src.integration.safe_fetch import SafeFetchError, assert_url_allowed
 
 log = logging.getLogger(__name__)
 
@@ -23,15 +24,21 @@ _BACKOFF_START = 1.0
 _BACKOFF_MAX = 30.0
 
 
+class _FatalConnectionError(Exception):
+    """URL failed the SSRF guard — do not reconnect."""
+
+
 class IntegrationConnection:
     def __init__(self, *, integration_id: str, url: str,
                  declared_capabilities: list[str],
                  heartbeat_seconds: float,
+                 allowlist: set[str],
                  should_stop) -> None:
         self.integration_id = integration_id
         self.url = url
         self.declared_capabilities = declared_capabilities
         self.heartbeat_seconds = heartbeat_seconds
+        self.allowlist = allowlist
         self._should_stop = should_stop
 
     async def run(self) -> None:
@@ -40,6 +47,10 @@ class IntegrationConnection:
             try:
                 await self._session()
                 backoff = _BACKOFF_START
+            except _FatalConnectionError:
+                log.error("connector id=%s permanently stopped (blocked url)",
+                          self.integration_id)
+                break
             except Exception as e:  # noqa: BLE001 — connector must not die
                 log.warning("connector id=%s session ended: %s",
                             self.integration_id, e)
@@ -50,6 +61,13 @@ class IntegrationConnection:
         log.info("connector id=%s stopped", self.integration_id)
 
     async def _session(self) -> None:
+        try:
+            assert_url_allowed(self.url, allowlist=self.allowlist,
+                               schemes={"wss"})
+        except SafeFetchError as e:
+            log.error("connector id=%s blocked url %s: %s",
+                      self.integration_id, self.url, e)
+            raise _FatalConnectionError(str(e)) from e
         async with websockets.connect(self.url) as ws:
             log.info("connector id=%s connected", self.integration_id)
             hb = asyncio.create_task(self._heartbeat(ws))

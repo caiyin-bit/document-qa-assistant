@@ -2,6 +2,8 @@
 encrypted pairing secret, flips status to active. Mocks safe_post."""
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
@@ -37,7 +39,10 @@ async def _seed(db, token="tok", expired=False):
         manifest_snapshot=_SNAP, status=IntegrationStatus.draft,
         created_by=admin.id, pairing_secret_ciphertext=None,
         token_refresh_meta={"pending_confirm_token": token,
-                            "expires_at": exp.isoformat()},
+                            "expires_at": exp.isoformat(),
+                            "manifest_hash": hashlib.sha256(
+                                json.dumps(_SNAP, sort_keys=True).encode()
+                            ).hexdigest()},
     )
     db.add(row)
     await db.commit()
@@ -101,3 +106,16 @@ async def test_register_non_2xx_keeps_draft(db_session, monkeypatch):
         select(PlatformIntegration).where(PlatformIntegration.id == row.id)
     )).scalars().first()
     assert refreshed.status == IntegrationStatus.draft
+
+
+@pytest.mark.asyncio
+async def test_manifest_swap_rejected(db_session, monkeypatch):
+    monkeypatch.setenv("INTEGRATION_SECRET", "s")
+    monkeypatch.setenv("INTEGRATION_HOST_ALLOWLIST", "api.example.com")
+    row = await _seed(db_session)
+    # mutate the snapshot AFTER approval — hash no longer matches
+    row.manifest_snapshot = {**_SNAP, "platform": "EVIL"}
+    await db_session.commit()
+    with pytest.raises(RegistrarError):
+        await confirm_and_register(db_session, integration_id=row.id,
+                                   token="tok")

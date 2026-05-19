@@ -184,6 +184,9 @@ async def require_admin(request: Request, db: AsyncSession) -> UUID:
     the whole system into an external platform). A regular tenant user
     must never reach these tools/endpoints.
     """
+    if ("session" not in request.scope
+            or request.session.get("user_id") is None):
+        raise HTTPException(403, "需要管理员权限")
     uid = current_user_id(request)
     if uid is None:
         raise HTTPException(401, "请先登录")
@@ -195,6 +198,9 @@ async def require_admin(request: Request, db: AsyncSession) -> UUID:
 
 async def is_current_user_admin(request: Request, db: AsyncSession) -> bool:
     """Non-raising variant used by the chat tool gate."""
+    if ("session" not in request.scope
+            or request.session.get("user_id") is None):
+        return False
     uid = current_user_id(request)
     if uid is None:
         return False

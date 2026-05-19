@@ -2,6 +2,8 @@
 register call. Reached only after HITL confirm (Task 10 endpoint)."""
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import os
 from datetime import datetime, timedelta, timezone
@@ -46,6 +48,10 @@ async def confirm_and_register(db, *, integration_id: UUID, token: str) -> dict:
         raise RegistrarError("confirm token expired")
 
     snap = row.manifest_snapshot
+    expected_hash = hashlib.sha256(
+        json.dumps(snap, sort_keys=True).encode()).hexdigest()
+    if meta.get("manifest_hash") != expected_hash:
+        raise RegistrarError("manifest changed since approval")
     reg = snap["register"]
     try:
         resp = await safe_post(
@@ -69,7 +75,7 @@ async def confirm_and_register(db, *, integration_id: UUID, token: str) -> dict:
 
     row.pairing_secret_ciphertext = encrypt_secret(pairing_code)
     row.status = IntegrationStatus.active
-    meta = {"registered_at": datetime.now(timezone.utc).isoformat()}
+    meta = {"registered_at": datetime.now(timezone.utc).isoformat()}  # fresh meta drops pending_confirm_token (single-use)
     expires_in = body.get("expires_in")
     refresh_url = snap["connection"].get("token_refresh_url")
     if refresh_url and expires_in:
