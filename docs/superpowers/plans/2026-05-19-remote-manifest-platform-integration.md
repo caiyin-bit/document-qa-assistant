@@ -36,7 +36,8 @@
 | `src/main.py` | Modify | 挂载 integrations 路由 |
 | `src/connector/__init__.py` | Create | 包标记 |
 | `src/connector/inbound.py` | Create | 入站命令 schema 校验 + 能力白名单 + 固定 handler |
-| `src/connector/connection.py` | Create | 单 integration 连接:transport/心跳/重连/刷 token |
+| `src/connector/connection.py` | Create | 单 integration 连接:transport/心跳/重连 |
+| `src/connector/token_refresh.py` | Create | token 到期刷新;失败置 degraded |
 | `src/connector/main.py` | Create | 守护进程入口:轮询 active 行,管理连接生命周期 |
 | `pyproject.toml` | Modify | 新增 `cryptography`、`websockets` 依赖 |
 | `config.yaml` | Modify | 无新结构;allowlist/secret 走 env(文档注明) |
@@ -1125,12 +1126,19 @@ Create `tests/unit/test_integration_tools.py`:
 confirmation_required signal (never registers directly)."""
 from __future__ import annotations
 
+import contextlib
 from uuid import uuid4
 
 import pytest
 from sqlalchemy import select
 
 from src.tools.integration_tools import IntegrationToolDeps, build_integration_tools
+
+
+@contextlib.asynccontextmanager
+async def _sm(session):
+    """Test sessionmaker: yield the shared fixture session, never close it."""
+    yield session
 
 _MD = """
 ```agent-integration
@@ -1158,7 +1166,7 @@ def _tools(db, monkeypatch):
         return _MD
 
     monkeypatch.setattr("src.tools.integration_tools.safe_fetch", fake_fetch)
-    deps = IntegrationToolDeps(sessionmaker=lambda: db)  # see Step 4 note
+    deps = IntegrationToolDeps(sessionmaker=lambda: _sm(db))
     return {n: t for n, _, t in build_integration_tools(deps)}
 
 
@@ -1204,13 +1212,6 @@ async def test_request_pairing_code_returns_confirmation(db_session, monkeypatch
     assert res["token"]
     assert "ExamplePlatform" in res["summary"]
 ```
-
-> **Note (Step 4):** the test passes `sessionmaker=lambda: db` and the
-> tool must use it as an async context manager OR a plain callable
-> returning a session. To keep the tool testable with the existing
-> `db_session` fixture, `IntegrationToolDeps.sessionmaker` is treated as
-> "call it, if result has `__aenter__` use it, else use result directly".
-> See implementation Step 3.
 
 - [ ] **Step 3: Run test to verify it fails**
 
@@ -1263,19 +1264,18 @@ def _allowlist() -> set[str]:
 
 @dataclass
 class IntegrationToolDeps:
-    # Callable returning either an AsyncSession or an async-context-manager
-    # yielding one. Process-wide; injected from chat.py / connector.
+    # Zero-arg callable whose result is an async context manager yielding
+    # an AsyncSession. Convention (whole feature): `async with
+    # sessionmaker() as s`. Prod passes an `async_sessionmaker` (calling
+    # it returns a session that is itself such a CM, closed on exit);
+    # tests pass a factory that yields a shared non-closing session.
     sessionmaker: object
 
 
 @contextlib.asynccontextmanager
 async def _session(deps: IntegrationToolDeps):
-    made = deps.sessionmaker()
-    if hasattr(made, "__aenter__"):
-        async with made as s:
-            yield s
-    else:
-        yield made
+    async with deps.sessionmaker() as s:
+        yield s
 
 
 def _manifest_hash(snapshot: dict) -> str:
@@ -1883,12 +1883,8 @@ def make_integrations_router(*, sessionmaker) -> APIRouter:
     router = APIRouter(prefix="/integrations")
 
     async def get_db() -> AsyncIterator[AsyncSession]:
-        made = sessionmaker()
-        if hasattr(made, "__aenter__"):
-            async with made as s:
-                yield s
-        else:
-            yield made
+        async with sessionmaker() as s:
+            yield s
 
     async def _admin(request: Request,
                      db: AsyncSession = Depends(get_db)) -> UUID:
@@ -2313,6 +2309,234 @@ git add pyproject.toml src/connector/connection.py tests/unit/test_connection.py
 git commit -m "feat(connector): websocket connection lifecycle + heartbeat + kill switch"
 ```
 
+### Task 12.5: Token refresh (spec error-table parity)
+
+> Closes the spec gap: "token 刷新失败 → 标记 degraded 并告警". Refresh
+> contract (explicit assumption): the register / refresh response may
+> include `expires_in` (seconds) and the manifest declares
+> `connection.token_refresh_url`. Refresh = POST current pairing_code to
+> that url, expect `{pairing_code, expires_in}`. No expiry stored → no-op
+> (a platform that never expires tokens needs no refresh).
+
+**Files:**
+- Modify: `src/integration/registrar.py` (persist expiry + refresh url)
+- Create: `src/connector/token_refresh.py`
+- Test: `tests/unit/test_token_refresh.py` (create)
+
+- [ ] **Step 1: Write the failing test**
+
+Create `tests/unit/test_token_refresh.py`:
+
+```python
+"""refresh_if_due: skips when no expiry, rotates secret on success,
+flips to degraded on any failure."""
+from __future__ import annotations
+
+from datetime import datetime, timedelta, timezone
+from uuid import uuid4
+
+import httpx
+import pytest
+
+from src.connector.token_refresh import refresh_if_due
+from src.integration.crypto import decrypt_secret, encrypt_secret
+from src.models.schemas import IntegrationStatus, PlatformIntegration, User
+
+
+async def _row(db, *, meta, code="OLD"):
+    admin = User(id=uuid4(), name="a", email=f"{uuid4()}@x.com", is_admin=True)
+    db.add(admin)
+    await db.commit()
+    r = PlatformIntegration(
+        id=uuid4(), platform_name="P", manifest_snapshot={},
+        status=IntegrationStatus.active, created_by=admin.id,
+        pairing_secret_ciphertext=encrypt_secret(code),
+        token_refresh_meta=meta)
+    db.add(r)
+    await db.commit()
+    return r
+
+
+@pytest.mark.asyncio
+async def test_skips_when_no_expiry(db_session, monkeypatch):
+    monkeypatch.setenv("INTEGRATION_SECRET", "s")
+    r = await _row(db_session, meta={"registered_at": "x"})
+    assert await refresh_if_due(db_session, r) == "skipped"
+
+
+@pytest.mark.asyncio
+async def test_skips_when_not_yet_due(db_session, monkeypatch):
+    monkeypatch.setenv("INTEGRATION_SECRET", "s")
+    far = (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat()
+    r = await _row(db_session, meta={"token_refresh_url":
+                   "https://api.example.com/t", "token_expires_at": far})
+    assert await refresh_if_due(db_session, r) == "skipped"
+
+
+@pytest.mark.asyncio
+async def test_refreshes_and_rotates_secret(db_session, monkeypatch):
+    monkeypatch.setenv("INTEGRATION_SECRET", "s")
+    monkeypatch.setenv("INTEGRATION_HOST_ALLOWLIST", "api.example.com")
+    soon = (datetime.now(timezone.utc) + timedelta(seconds=5)).isoformat()
+    r = await _row(db_session, meta={"token_refresh_url":
+                   "https://api.example.com/t", "token_expires_at": soon})
+
+    async def fake_post(url, *, allowlist, json_body):
+        assert json_body == {"pairing_code": "OLD"}
+        return httpx.Response(200, json={"pairing_code": "NEW",
+                                         "expires_in": 3600})
+    monkeypatch.setattr("src.connector.token_refresh.safe_post", fake_post)
+    assert await refresh_if_due(db_session, r) == "refreshed"
+    assert decrypt_secret(r.pairing_secret_ciphertext) == "NEW"
+    assert r.status == IntegrationStatus.active
+
+
+@pytest.mark.asyncio
+async def test_failure_sets_degraded(db_session, monkeypatch):
+    monkeypatch.setenv("INTEGRATION_SECRET", "s")
+    monkeypatch.setenv("INTEGRATION_HOST_ALLOWLIST", "api.example.com")
+    soon = (datetime.now(timezone.utc) + timedelta(seconds=5)).isoformat()
+    r = await _row(db_session, meta={"token_refresh_url":
+                   "https://api.example.com/t", "token_expires_at": soon})
+
+    async def fake_post(url, *, allowlist, json_body):
+        return httpx.Response(503, text="down")
+    monkeypatch.setattr("src.connector.token_refresh.safe_post", fake_post)
+    assert await refresh_if_due(db_session, r) == "degraded"
+    assert r.status == IntegrationStatus.degraded
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `uv run pytest tests/unit/test_token_refresh.py -v`
+Expected: FAIL — `ModuleNotFoundError: src.connector.token_refresh`
+
+- [ ] **Step 3: Persist expiry in the registrar**
+
+In `src/integration/registrar.py`, change the datetime import to include
+`timedelta`:
+
+```python
+from datetime import datetime, timedelta, timezone
+```
+
+Replace the credential-persist tail of `confirm_and_register` (the block
+from `row.pairing_secret_ciphertext = encrypt_secret(pairing_code)` to the
+`return {...}`) with:
+
+```python
+    row.pairing_secret_ciphertext = encrypt_secret(pairing_code)
+    row.status = IntegrationStatus.active
+    meta = {"registered_at": datetime.now(timezone.utc).isoformat()}
+    expires_in = body.get("expires_in")
+    refresh_url = snap["connection"].get("token_refresh_url")
+    if refresh_url and expires_in:
+        meta["token_refresh_url"] = refresh_url
+        meta["token_expires_at"] = (
+            datetime.now(timezone.utc)
+            + timedelta(seconds=int(expires_in))
+        ).isoformat()
+    row.token_refresh_meta = meta
+    await db.commit()
+    log.info("integration.registered id=%s platform=%s",
+             row.id, snap["platform"])
+    return {"integration_id": str(row.id), "claim_url": claim_url,
+            "status": "active"}
+```
+
+(The Task 9 happy-path test's fake_post returns no `expires_in`, so `meta`
+stays `{"registered_at": ...}` and that test remains green unchanged.)
+
+- [ ] **Step 4: Implement token_refresh**
+
+Create `src/connector/token_refresh.py`:
+
+```python
+"""Connector token refresh — spec error-table parity.
+
+refresh_if_due(db, row): no-op unless token_refresh_meta carries both
+token_refresh_url and a token_expires_at within the skew window. On any
+failure the row is flipped to `degraded` (and logged as the spec's
+"告警"); the supervisor then drops its connection on the next poll.
+"""
+from __future__ import annotations
+
+import logging
+import os
+from datetime import datetime, timedelta, timezone
+
+from src.integration.crypto import decrypt_secret, encrypt_secret
+from src.integration.safe_fetch import safe_post
+from src.models.schemas import IntegrationStatus
+
+log = logging.getLogger(__name__)
+
+
+def _allowlist() -> set[str]:
+    raw = os.getenv("INTEGRATION_HOST_ALLOWLIST", "")
+    return {h.strip().lower() for h in raw.split(",") if h.strip()}
+
+
+async def _degrade(db, row, why: str) -> str:
+    row.status = IntegrationStatus.degraded
+    await db.commit()
+    log.warning("token refresh failed id=%s -> degraded: %s", row.id, why)
+    return "degraded"
+
+
+async def refresh_if_due(db, row, *, skew_seconds: int = 60) -> str:
+    meta = row.token_refresh_meta or {}
+    url = meta.get("token_refresh_url")
+    exp_raw = meta.get("token_expires_at")
+    if not url or not exp_raw:
+        return "skipped"
+    try:
+        expires = datetime.fromisoformat(exp_raw)
+    except ValueError:
+        return "skipped"
+    if datetime.now(timezone.utc) < expires - timedelta(seconds=skew_seconds):
+        return "skipped"
+    try:
+        current = decrypt_secret(row.pairing_secret_ciphertext)
+        resp = await safe_post(url, allowlist=_allowlist(),
+                               json_body={"pairing_code": current})
+    except Exception as e:  # noqa: BLE001 — any failure → degraded, never crash
+        return await _degrade(db, row, repr(e))
+    if resp.status_code // 100 != 2:
+        return await _degrade(db, row, f"status {resp.status_code}")
+    try:
+        body = resp.json()
+    except ValueError:
+        return await _degrade(db, row, "response not JSON")
+    new_code = body.get("pairing_code")
+    if not new_code:
+        return await _degrade(db, row, "missing pairing_code")
+    row.pairing_secret_ciphertext = encrypt_secret(new_code)
+    new_meta = dict(meta)
+    expires_in = body.get("expires_in")
+    if expires_in:
+        new_meta["token_expires_at"] = (
+            datetime.now(timezone.utc)
+            + timedelta(seconds=int(expires_in))
+        ).isoformat()
+    row.token_refresh_meta = new_meta
+    await db.commit()
+    log.info("token refreshed id=%s", row.id)
+    return "refreshed"
+```
+
+- [ ] **Step 5: Run tests to verify they pass**
+
+Run: `uv run pytest tests/unit/test_token_refresh.py tests/unit/test_registrar.py -v`
+Expected: token_refresh 4 PASS; registrar 4 PASS (unchanged)
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/integration/registrar.py src/connector/token_refresh.py tests/unit/test_token_refresh.py
+git commit -m "feat(connector): token refresh — rotate secret, degrade on failure"
+```
+
 ### Task 13: Connector daemon (poll active rows, manage connections)
 
 **Files:**
@@ -2329,12 +2553,19 @@ leaves active (disabled kill switch)."""
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from uuid import uuid4
 
 import pytest
 
 from src.connector.main import ConnectorSupervisor
 from src.models.schemas import IntegrationStatus, PlatformIntegration, User
+
+
+@contextlib.asynccontextmanager
+async def _sm(session):
+    """Test sessionmaker: yield the shared fixture session, never close it."""
+    yield session
 
 
 @pytest.mark.asyncio
@@ -2366,7 +2597,7 @@ async def test_supervisor_starts_and_stops_per_status(db_session, monkeypatch):
                 raise
 
     monkeypatch.setattr("src.connector.main.IntegrationConnection", _FakeConn)
-    sup = ConnectorSupervisor(sessionmaker=lambda: db_session,
+    sup = ConnectorSupervisor(sessionmaker=lambda: _sm(db_session),
                               poll_seconds=0.1)
     sup_task = asyncio.create_task(sup.run())
     await asyncio.sleep(0.3)
@@ -2409,6 +2640,7 @@ import logging
 from sqlalchemy import select
 
 from src.connector.connection import IntegrationConnection
+from src.connector.token_refresh import refresh_if_due
 from src.models.schemas import IntegrationStatus, PlatformIntegration
 
 log = logging.getLogger(__name__)
@@ -2425,22 +2657,32 @@ class ConnectorSupervisor:
     def stop(self) -> None:
         self._stop = True
 
-    async def _open_db(self):
-        made = self._sessionmaker()
-        if hasattr(made, "__aenter__"):
-            return made  # caller uses async with
-        return _NullCtx(made)
-
     async def _active_rows(self) -> list[PlatformIntegration]:
-        ctx = await self._open_db()
-        async with ctx as db:
+        async with self._sessionmaker() as db:
             return list((await db.execute(
                 select(PlatformIntegration).where(
                     PlatformIntegration.status == IntegrationStatus.active)
             )).scalars().all())
 
+    async def _refresh_due(self) -> None:
+        """Per-poll token refresh. refresh_if_due is a no-op for rows
+        without a stored expiry, so this is cheap; on failure it flips the
+        row to `degraded`, which the connection-management pass below then
+        treats exactly like the kill switch (drops the connection)."""
+        async with self._sessionmaker() as db:
+            rows = list((await db.execute(
+                select(PlatformIntegration).where(
+                    PlatformIntegration.status == IntegrationStatus.active)
+            )).scalars().all())
+            for r in rows:
+                try:
+                    await refresh_if_due(db, r)
+                except Exception:  # noqa: BLE001 — supervisor must not die
+                    log.exception("refresh pass error id=%s", r.id)
+
     async def run(self) -> None:
         while not self._stop:
+            await self._refresh_due()
             rows = await self._active_rows()
             now_active = {str(r.id) for r in rows}
 
@@ -2476,12 +2718,6 @@ class ConnectorSupervisor:
 
         for t in self._tasks.values():
             t.cancel()
-
-
-class _NullCtx:
-    def __init__(self, obj): self._obj = obj
-    async def __aenter__(self): return self._obj
-    async def __aexit__(self, *a): return False
 
 
 def main() -> None:  # pragma: no cover - process entrypoint
@@ -2583,7 +2819,8 @@ git commit -m "docs: operator guide for remote-manifest platform integration"
 | 入站命令默认拒 + 能力白名单 + 极小 handler | Task 11 |
 | 熔断开关 | Task 10 (disable), 12/13 (drop) |
 | 持久连接 worker (独立长驻) | Task 12, 13 |
-| Error handling 表 | Task 3/4 (fetch/manifest), 9 (register non-2xx keeps draft, token expiry), 12 (backoff) |
+| Error handling 表 | Task 3/4 (fetch/manifest), 9 (register non-2xx keeps draft, confirm-token expiry), 12 (backoff/reconnect), 12.5 (token 刷新失败 → degraded + 告警) |
+| token 刷新 (spec error table) | Task 12.5 (refresh_if_due) + Task 13 (per-poll invocation) |
 | Testing strategy | every Task has unit; e2e checks in Task 7/10; mock platform (Task 9/10), mock ws (Task 12) |
 | Out of scope (per-user, cross-platform orchestration, platform-side protocol) | not implemented — intentional |
 
@@ -2591,6 +2828,6 @@ No spec requirement is left without a task.
 
 **2. Placeholder scan:** No TBD/TODO; every code step has complete code; every command has expected output.
 
-**3. Type consistency:** `IntegrationToolDeps.sessionmaker` callable convention is consistent across `integration_tools.py`, `integrations.py`, `connector/main.py` (all use the "call → if `__aenter__` use as ctx else use directly" pattern). `confirmation_required` event shape `{integration_id, token, summary}` matches between `sse.py` (Task 8 step1), the tool result keys (Task 8 step4), and the engine emit (Task 8 step8). `PlatformIntegration` field names consistent across Tasks 6/8/9/10/13. `IntegrationStatus` values consistent (draft/active/degraded/disabled).
+**3. Type consistency:** `sessionmaker` convention is consistent across `integration_tools.py`, `integrations.py`, `connector/main.py` — all use `async with sessionmaker() as s`; prod injects an `async_sessionmaker`, tests inject a non-closing CM factory (`_sm`). `confirmation_required` event shape `{integration_id, token, summary}` matches between `sse.py` (Task 8 step1), the tool result keys (Task 8 step4), and the engine emit (Task 8 step8). `PlatformIntegration` field names consistent across Tasks 6/8/9/10/12.5/13. `IntegrationStatus` values consistent (draft/active/degraded/disabled). `token_refresh_meta` keys consistent: `pending_confirm_token`/`expires_at` (pre-confirm, Task 8/9) vs `token_refresh_url`/`token_expires_at` (post-register, Task 9 step3 / 12.5).
 
-**Known scope notes (intentional, not gaps):** token refresh loop in the connector and `degraded` transition are declared in the spec error table; this plan implements `degraded` as a status value + kill-switch/backoff but does NOT implement an automatic token-refresh timer (manifest `token_refresh_url` is validated + stored, refresh execution deferred). Flagged here for the user — see review prompt below.
+**Scope:** all spec error-table rows now have a task (token refresh closed by Task 12.5 per user decision). No intentional deferrals remain.
