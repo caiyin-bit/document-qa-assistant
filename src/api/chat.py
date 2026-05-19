@@ -97,6 +97,7 @@ def make_router(deps: ChatDependencies) -> APIRouter:
         return MemoryService(db)
 
     def _build_engine(db: AsyncSession) -> ConversationEngine:
+        from src.tools.integration_tools import IntegrationToolDeps
         mem = _build_memory(db)
         tools = ToolRegistry.default(
             mem=mem,
@@ -105,6 +106,7 @@ def make_router(deps: ChatDependencies) -> APIRouter:
             top_k=deps.top_k,
             reranker=deps.reranker,
             rerank_top_n=deps.rerank_top_n,
+            integration_deps=IntegrationToolDeps(sessionmaker=deps.sessionmaker),
         )
         return ConversationEngine(
             mem=mem,

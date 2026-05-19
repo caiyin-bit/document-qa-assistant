@@ -21,6 +21,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from src.api.auth import make_auth_router
 from src.api.chat import ChatDependencies, ConvSettings, make_router
 from src.api.documents import make_documents_router
+from src.api.integrations import make_integrations_router
 from src.config import Config, load_config
 from src.core.persona_loader import PersonaLoader
 from src.db.session import make_engine, make_sessionmaker
@@ -68,6 +69,7 @@ def create_app(deps: ChatDependencies) -> FastAPI:
         allow_credentials=True,
     )
     app.include_router(make_auth_router(sessionmaker=deps.sessionmaker))
+    app.include_router(make_integrations_router(sessionmaker=deps.sessionmaker))
     app.include_router(make_router(deps))
     app.include_router(make_documents_router(embedder=deps.embedder, llm=deps.llm))
     return app
