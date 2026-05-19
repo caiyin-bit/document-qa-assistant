@@ -24,6 +24,7 @@ async def test_confirm_then_disable(db_session, monkeypatch):
 
     from datetime import datetime, timedelta, timezone
     exp = (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
+    _sid = uuid4()
     _manifest = {"version": 1, "platform": "P",
         "register": {"method": "POST",
                      "url": "https://api.example.com/r", "body_schema": {}},
@@ -37,6 +38,7 @@ async def test_confirm_then_disable(db_session, monkeypatch):
         status=IntegrationStatus.draft, created_by=admin.id,
         token_refresh_meta={"pending_confirm_token": "tok",
                             "expires_at": exp,
+                            "session_id": str(_sid),
                             "manifest_hash": hashlib.sha256(
                                 json.dumps(_manifest, sort_keys=True).encode()
                             ).hexdigest()})
@@ -53,8 +55,8 @@ async def test_confirm_then_disable(db_session, monkeypatch):
     confirm = _find(router, "confirm")
     disable = _find(router, "disable")
 
-    out = await confirm(row.id, _Body("tok"), _admin_req(admin.id), db_session,
-                        admin.id)
+    out = await confirm(row.id, _Body("tok", _sid), _admin_req(admin.id),
+                        db_session, admin.id)
     assert out["claim_url"] == "https://api.example.com/c"
 
     await disable(row.id, _admin_req(admin.id), db_session, admin.id)
@@ -65,7 +67,9 @@ async def test_confirm_then_disable(db_session, monkeypatch):
 
 
 class _Body:
-    def __init__(self, token): self.token = token
+    def __init__(self, token, session_id):
+        self.token = token
+        self.session_id = session_id
 
 
 class _Req:

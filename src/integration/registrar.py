@@ -27,7 +27,8 @@ def _allowlist() -> set[str]:
     return {h.strip().lower() for h in raw.split(",") if h.strip()}
 
 
-async def confirm_and_register(db, *, integration_id: UUID, token: str) -> dict:
+async def confirm_and_register(db, *, integration_id: UUID, token: str,
+                               session_id: str) -> dict:
     row = (await db.execute(
         select(PlatformIntegration).where(
             PlatformIntegration.id == integration_id)
@@ -40,6 +41,10 @@ async def confirm_and_register(db, *, integration_id: UUID, token: str) -> dict:
     if not meta.get("pending_confirm_token") or \
             meta["pending_confirm_token"] != token:
         raise RegistrarError("invalid confirm token")
+    # Session binding: confirm must originate from the same chat session
+    # that requested the pairing code (spec locked decision).
+    if meta.get("session_id") != str(session_id):
+        raise RegistrarError("confirm session mismatch")
     try:
         expires = datetime.fromisoformat(meta["expires_at"])
     except (KeyError, ValueError) as e:

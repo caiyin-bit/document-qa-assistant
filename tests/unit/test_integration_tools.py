@@ -78,8 +78,9 @@ async def test_request_pairing_code_returns_confirmation(db_session, monkeypatch
         session_id=uuid4(), user_id=admin.id,
         url="https://api.example.com/SKILL.md",
     )
+    sid = uuid4()
     res = await tools["request_pairing_code"].execute(
-        session_id=uuid4(), user_id=admin.id,
+        session_id=sid, user_id=admin.id,
         integration_id=fetched["integration_id"],
     )
     assert res["ok"] is True
@@ -87,3 +88,10 @@ async def test_request_pairing_code_returns_confirmation(db_session, monkeypatch
     assert res["integration_id"] == fetched["integration_id"]
     assert res["token"]
     assert "ExamplePlatform" in res["summary"]
+    # Writer must bind the requesting chat session into the token meta.
+    from src.models.schemas import PlatformIntegration
+    row = (await db_session.execute(
+        select(PlatformIntegration).where(
+            PlatformIntegration.id == fetched["integration_id"])
+    )).scalars().first()
+    assert row.token_refresh_meta["session_id"] == str(sid)

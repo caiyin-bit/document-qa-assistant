@@ -24,6 +24,7 @@ log = logging.getLogger(__name__)
 
 class ConfirmBody(BaseModel):
     token: str
+    session_id: UUID
 
 
 class IntegrationItem(BaseModel):
@@ -63,7 +64,8 @@ def make_integrations_router(*, sessionmaker) -> APIRouter:
     ):
         try:
             return await confirm_and_register(
-                db, integration_id=integration_id, token=body.token)
+                db, integration_id=integration_id, token=body.token,
+                session_id=str(body.session_id))
         except RegistrarError as e:
             raise HTTPException(400, str(e))
 

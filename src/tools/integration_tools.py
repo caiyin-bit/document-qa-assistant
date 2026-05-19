@@ -158,6 +158,10 @@ class RequestPairingCodeTool:
                 "expires_at": (datetime.now(timezone.utc)
                                + _TOKEN_TTL).isoformat(),
                 "requested_by": str(user_id),
+                # Bind the token to the chat session that requested it:
+                # confirm must come from the same session (spec locked
+                # decision — approve in the conversation you saw it in).
+                "session_id": str(session_id),
             }
             await db.commit()
             m = row.manifest_snapshot
