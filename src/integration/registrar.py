@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from sqlalchemy import select
@@ -69,8 +69,16 @@ async def confirm_and_register(db, *, integration_id: UUID, token: str) -> dict:
 
     row.pairing_secret_ciphertext = encrypt_secret(pairing_code)
     row.status = IntegrationStatus.active
-    row.token_refresh_meta = {"registered_at":
-                              datetime.now(timezone.utc).isoformat()}
+    meta = {"registered_at": datetime.now(timezone.utc).isoformat()}
+    expires_in = body.get("expires_in")
+    refresh_url = snap["connection"].get("token_refresh_url")
+    if refresh_url and expires_in:
+        meta["token_refresh_url"] = refresh_url
+        meta["token_expires_at"] = (
+            datetime.now(timezone.utc)
+            + timedelta(seconds=int(expires_in))
+        ).isoformat()
+    row.token_refresh_meta = meta
     await db.commit()
     log.info("integration.registered id=%s platform=%s",
              row.id, snap["platform"])
