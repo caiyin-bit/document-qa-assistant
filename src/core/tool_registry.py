@@ -11,9 +11,12 @@ Three error layers (chat-borrowed):
 from __future__ import annotations
 
 import logging
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from src.tools.search_documents import SearchDocumentsTool, TOOL_SCHEMA
+
+if TYPE_CHECKING:
+    from src.tools.integration_tools import IntegrationToolDeps
 
 log = logging.getLogger(__name__)
 
@@ -26,20 +29,20 @@ ToolEntry = tuple[dict, _ToolLike]
 
 
 class ToolRegistry:
-    def __init__(self, tools: dict[str, ToolEntry]) -> None:
+    def __init__(
+        self, tools: dict[str, ToolEntry],
+        *, admin_only: set[str] | None = None,
+    ) -> None:
         self._tools = tools
+        self._admin_only = admin_only or set()
 
     @classmethod
     def default(
         cls, *, mem, embedder, min_similarity: float, top_k: int,
         reranker=None, rerank_top_n: int = 5,
+        integration_deps: "IntegrationToolDeps | None" = None,
     ) -> "ToolRegistry":
-        """V1 wiring: only search_documents.
-
-        Add new tools here as the V2 surface grows. Each entry is
-        (raw_schema_dict, tool_instance).
-        """
-        return cls({
+        tools: dict[str, ToolEntry] = {
             "search_documents": (
                 TOOL_SCHEMA,
                 SearchDocumentsTool(
@@ -48,22 +51,25 @@ class ToolRegistry:
                     reranker=reranker, rerank_top_n=rerank_top_n,
                 ),
             ),
-        })
+        }
+        admin_only: set[str] = set()
+        if integration_deps is not None:
+            from src.tools.integration_tools import build_integration_tools
+            for name, schema, tool in build_integration_tools(integration_deps):
+                tools[name] = (schema, tool)
+                admin_only.add(name)
+        return cls(tools, admin_only=admin_only)
 
-    def schemas(self) -> list[dict[str, Any]]:
-        """Return tool schemas wrapped in OpenAI Tools API envelope.
-
-        Some strict gateways (we hit this on a previous SiliconFlow
-        deployment) reject calls missing the {type, function} wrapper
-        with 400 "Field required". Keep the wrapper unconditionally.
-        """
+    def schemas(self, *, is_admin: bool = False) -> list[dict[str, Any]]:
         return [
             {"type": "function", "function": schema}
-            for schema, _ in self._tools.values()
+            for name, (schema, _) in self._tools.items()
+            if is_admin or name not in self._admin_only
         ]
 
     async def execute(
         self, name: str, arguments: dict, *, session_id,
+        user_id=None, is_admin: bool = False,
     ) -> dict:
         entry = self._tools.get(name)
         if not entry:
@@ -72,12 +78,25 @@ class ToolRegistry:
                 "ok": False, "error": "unknown_tool",
                 "message": f"unknown tool: {name}",
             }
+        if name in self._admin_only and not is_admin:
+            log.warning("tool_registry.forbidden name=%s user=%s", name, user_id)
+            return {
+                "ok": False, "error": "forbidden",
+                "message": f"admin only: {name}",
+            }
         _, tool = entry
         try:
-            return await tool.execute(session_id=session_id, **arguments)
+            return await tool.execute(
+                session_id=session_id, user_id=user_id, **arguments,
+            )
+        except TypeError:
+            # Tools that don't accept user_id (e.g. search_documents) —
+            # call without it for backward compatibility.
+            try:
+                return await tool.execute(session_id=session_id, **arguments)
+            except Exception as e:
+                log.exception("tool_registry.system_error name=%s", name)
+                return {"ok": False, "error": "system", "message": str(e)[:200]}
         except Exception as e:
             log.exception("tool_registry.system_error name=%s", name)
-            return {
-                "ok": False, "error": "system",
-                "message": str(e)[:200],
-            }
+            return {"ok": False, "error": "system", "message": str(e)[:200]}

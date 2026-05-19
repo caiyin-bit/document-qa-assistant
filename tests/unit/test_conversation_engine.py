@@ -208,7 +208,7 @@ async def test_template_a_accumulates_fragmented_tool_call_deltas():
             yield _LLMChunk(text_delta="6605 亿。")
             yield _LLMChunk(finish_reason="stop")
 
-    async def capture_execute(name, args, *, session_id):
+    async def capture_execute(name, args, *, session_id, user_id=None, is_admin=False):
         captured_args["query"] = args.get("query")
         return {"ok": True, "found": False, "chunks": []}
 
