@@ -5,7 +5,7 @@ from uuid import UUID, uuid4
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     BIGINT, Boolean, DateTime, Enum as SAEnum, ForeignKey, Integer,
-    String, Text, func,
+    LargeBinary, String, Text, func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -25,6 +25,13 @@ class MessageRole(str, Enum):
     user = "user"
     assistant = "assistant"
     tool = "tool"
+
+
+class IntegrationStatus(str, Enum):
+    draft = "draft"
+    active = "active"
+    degraded = "degraded"
+    disabled = "disabled"
 
 
 class User(Base):
@@ -117,3 +124,27 @@ class DocumentChunk(Base):
     content: Mapped[str] = mapped_column(Text)
     content_embedding = mapped_column(Vector(1024), nullable=False)
     token_count: Mapped[int] = mapped_column(Integer)
+
+
+class PlatformIntegration(Base):
+    __tablename__ = "platform_integration"
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    platform_name: Mapped[str] = mapped_column(String(200))
+    manifest_snapshot: Mapped[dict] = mapped_column(JSONB)
+    status: Mapped[str] = mapped_column(
+        SAEnum(IntegrationStatus, name="integration_status"),
+        default=IntegrationStatus.draft,
+    )
+    created_by: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id"),
+    )
+    pairing_secret_ciphertext: Mapped[bytes | None] = mapped_column(
+        LargeBinary, nullable=True,
+    )
+    token_refresh_meta: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(),
+    )
