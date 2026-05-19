@@ -3,19 +3,14 @@ leaves active (disabled kill switch)."""
 from __future__ import annotations
 
 import asyncio
-import contextlib
 from uuid import uuid4
 
 import pytest
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from src.connector.main import ConnectorSupervisor
+from src.db.session import get_engine
 from src.models.schemas import IntegrationStatus, PlatformIntegration, User
-
-
-@contextlib.asynccontextmanager
-async def _sm(session):
-    """Test sessionmaker: yield the shared fixture session, never close it."""
-    yield session
 
 
 @pytest.mark.asyncio
@@ -47,8 +42,12 @@ async def test_supervisor_starts_and_stops_per_status(db_session, monkeypatch):
                 raise
 
     monkeypatch.setattr("src.connector.main.IntegrationConnection", _FakeConn)
-    sup = ConnectorSupervisor(sessionmaker=lambda: _sm(db_session),
-                              poll_seconds=0.1)
+    # Real sessionmaker (independent session per `async with`, like prod):
+    # the supervisor polls concurrently with this test, and a single shared
+    # AsyncSession cannot be used by overlapping operations. Rows are
+    # committed above so a separate session on the same DB sees them.
+    sm = async_sessionmaker(get_engine(), expire_on_commit=False)
+    sup = ConnectorSupervisor(sessionmaker=sm, poll_seconds=0.1)
     sup_task = asyncio.create_task(sup.run())
     await asyncio.sleep(0.3)
     assert str(row.id) in started

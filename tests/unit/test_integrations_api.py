@@ -63,7 +63,9 @@ class _Body:
 
 
 class _Req:
-    def __init__(self, uid): self.scope = {"session": {}}; self.session = {"user_id": str(uid)}
+    def __init__(self, uid):
+        self.scope = {"session": {}}
+        self.session = {"user_id": str(uid)}
 
 
 def _admin_req(uid): return _Req(uid)
