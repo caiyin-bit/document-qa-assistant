@@ -473,3 +473,52 @@ async def test_engine_records_routing_on_b_failed_path():
         "fixed_response", "elapsed_seconds",
     }
     assert set(mem.saved_routing) == expected_keys
+
+
+@pytest.mark.asyncio
+async def test_confirmation_required_emits_event_and_stops_loop():
+    """A tool result with status=confirmation_required must make the engine
+    emit a confirmation_required StreamEvent and end the turn (no further
+    LLM iteration / no auto-registration)."""
+    from src.core.conversation_engine import ConversationEngine
+
+    class _LLM:
+        def __init__(self):
+            self.calls = 0
+        async def chat_stream(self, messages, tools=None):
+            self.calls += 1
+            from types import SimpleNamespace
+            yield SimpleNamespace(
+                text_delta="", finish_reason="tool_calls",
+                tool_call_deltas=[SimpleNamespace(
+                    index=0, id="tc1", name="request_pairing_code",
+                    arguments_fragment='{"integration_id":"abc"}')],
+            )
+
+    class _Tools:
+        def schemas(self, *, is_admin=False): return []
+        async def execute(self, name, args, *, session_id, user_id=None,
+                           is_admin=False):
+            return {"ok": True, "status": "confirmation_required",
+                    "integration_id": "abc", "token": "tok",
+                    "summary": "平台: X"}
+
+    class _Mem:
+        async def save_user_message(self, *a, **k): pass
+        async def save_assistant_message(self, *a, **k): pass
+        async def count_documents_by_status(self, s): return {}
+        async def list_documents(self, s): return []
+        async def list_messages(self, s): return []
+
+    llm = _LLM()
+    eng = ConversationEngine(mem=_Mem(), llm=llm, tools=_Tools(),
+                             persona="", max_tool_iterations=3)
+    events = [e async for e in eng.handle_stream(
+        session_id="s", message="接入", user_id="u", is_admin=True)]
+    types = [e.type for e in events]
+    assert "confirmation_required" in types
+    ce = next(e for e in events if e.type == "confirmation_required")
+    assert ce.data["integration_id"] == "abc"
+    assert ce.data["token"] == "tok"
+    assert llm.calls == 1
+    assert types[-1] == "done"

@@ -214,6 +214,23 @@ class ConversationEngine:
                         "role": "tool", "tool_call_id": acc["id"],
                         "content": json.dumps(result, ensure_ascii=False),
                     })
+
+                    if result.get("status") == "confirmation_required":
+                        yield StreamEvent.confirmation_required(
+                            integration_id=result["integration_id"],
+                            token=result["token"],
+                            summary=result["summary"],
+                        )
+                        await self.mem.save_assistant_message(
+                            session_id,
+                            "已生成接入确认请求，请在前端确认后继续。",
+                            citations=[],
+                            routing={"template": template,
+                                     "confirmation_required": True,
+                                     "integration_id": result["integration_id"]},
+                        )
+                        yield StreamEvent.done()
+                        return
                 continue
 
             break  # finish_reason missing or unexpected

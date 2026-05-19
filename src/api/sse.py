@@ -51,6 +51,16 @@ class StreamEvent:
     def citations(cls, chunks: list[dict]) -> "StreamEvent":
         return cls(type="citations", data={"chunks": chunks})
 
+    @classmethod
+    def confirmation_required(
+        cls, integration_id: str, token: str, summary: str,
+    ) -> "StreamEvent":
+        return cls(type="confirmation_required", data={
+            "integration_id": integration_id,
+            "token": token,
+            "summary": summary,
+        })
+
 
 def encode_sse(event: StreamEvent) -> bytes:
     """Encode one StreamEvent as an SSE wire frame per W3C spec."""
