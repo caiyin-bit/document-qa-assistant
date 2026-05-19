@@ -252,3 +252,20 @@ cd frontend && pnpm test
 | 前端 | Next.js 15 · React 19 · Tailwind 4 · shadcn/ui · react-markdown |
 | 图表 | xviz(@minimal-viz/core)+ ECharts 6,React.lazy 拆 chunk |
 | 容器 | docker-compose(postgres + redis + backend + worker + frontend) |
+
+## 平台接入(remote-manifest integration)
+
+管理员专用能力:聊天里发 `接入 X: https://.../SKILL.md`,agent 校验
+远程清单 → 返回确认请求 → 前端确认 → 系统注册并维持持久连接。
+
+必需环境变量:
+- `INTEGRATION_HOST_ALLOWLIST` — 逗号分隔的允许域名(空 = 拒绝所有拉取)
+- `INTEGRATION_SECRET` — 凭证加密密钥(独立于 SESSION_SECRET)
+
+设管理员:`UPDATE users SET is_admin = true WHERE email = '...';`
+
+运行连接守护进程(独立于 API 进程):
+
+    uv run python -m src.connector.main
+
+熔断:`POST /integrations/{id}/disable`(≤ poll 周期内断连)。
