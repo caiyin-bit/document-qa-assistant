@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -97,6 +97,7 @@ def make_router(deps: ChatDependencies) -> APIRouter:
         return MemoryService(db)
 
     def _build_engine(db: AsyncSession) -> ConversationEngine:
+        from src.tools.integration_tools import IntegrationToolDeps
         mem = _build_memory(db)
         tools = ToolRegistry.default(
             mem=mem,
@@ -105,6 +106,7 @@ def make_router(deps: ChatDependencies) -> APIRouter:
             top_k=deps.top_k,
             reranker=deps.reranker,
             rerank_top_n=deps.rerank_top_n,
+            integration_deps=IntegrationToolDeps(sessionmaker=deps.sessionmaker),
         )
         return ConversationEngine(
             mem=mem,
@@ -204,7 +206,8 @@ def make_router(deps: ChatDependencies) -> APIRouter:
 
     @router.post("/chat/stream")
     async def chat_stream(
-        req: ChatRequest, db: AsyncSession = Depends(get_db),
+        req: ChatRequest, req_request: Request,
+        db: AsyncSession = Depends(get_db),
         user_id: UUID = Depends(require_user),
     ) -> SSEStreamingResponse:
         # Validate session up-front so a stale frontend session_id (e.g.
@@ -217,10 +220,14 @@ def make_router(deps: ChatDependencies) -> APIRouter:
                 status_code=404,
                 detail="session not found or not owned by current user",
             )
+        from src.api.auth import is_current_user_admin
+        is_admin = await is_current_user_admin(req_request, db)
         engine = _build_engine(db)
         events = engine.handle_stream(
             session_id=req.session_id,
             message=req.message,
+            user_id=user_id,
+            is_admin=is_admin,
         )
         return SSEStreamingResponse(
             to_sse_bytes(events),

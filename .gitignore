@@ -39,3 +39,6 @@ data/uploads/.tmp/
 
 # E2E fixture PDFs (large, may be copyrighted)
 tests/fixtures/example/*.pdf
+
+# Local generated assets (images, etc. — not part of the repo)
+generated/

@@ -32,7 +32,7 @@ async def test_execute_dispatches_by_name_and_passes_session_id():
     reg = ToolRegistry({"do_thing": ({"name": "do_thing"}, tool)})
     out = await reg.execute("do_thing", {"q": "hi"}, session_id="sess-1")
     assert out == {"ok": True, "answer": 42}
-    assert tool.called_with == {"session_id": "sess-1", "q": "hi"}
+    assert tool.called_with == {"session_id": "sess-1", "user_id": None, "q": "hi"}
 
 
 @pytest.mark.asyncio
@@ -53,6 +53,28 @@ async def test_execute_tool_exception_returns_structured_system_error():
     assert out["ok"] is False
     assert out["error"] == "system"
     assert "db connection lost" in out["message"]
+
+
+@pytest.mark.asyncio
+async def test_admin_only_tool_hidden_and_blocked_for_non_admin():
+    schema = {"name": "secret_tool", "description": "x", "parameters": {}}
+    reg = ToolRegistry(
+        {"secret_tool": (schema, _StubTool(return_value={"ok": True}))},
+        admin_only={"secret_tool"},
+    )
+    # hidden from schema list for non-admin
+    assert reg.schemas(is_admin=False) == []
+    assert reg.schemas(is_admin=True) == [
+        {"type": "function", "function": schema}
+    ]
+    # blocked at execute for non-admin
+    out = await reg.execute("secret_tool", {}, session_id="s",
+                            user_id="u", is_admin=False)
+    assert out == {"ok": False, "error": "forbidden",
+                   "message": "admin only: secret_tool"}
+    out2 = await reg.execute("secret_tool", {}, session_id="s",
+                             user_id="u", is_admin=True)
+    assert out2 == {"ok": True}
 
 
 @pytest.mark.asyncio

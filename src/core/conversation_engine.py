@@ -30,7 +30,7 @@ class ConversationEngine:
         self.persona = persona
         self.max_tool_iterations = max_tool_iterations
 
-    async def handle_stream(self, *, session_id, message: str, **_ignored) -> AsyncIterator[StreamEvent]:
+    async def handle_stream(self, *, session_id, message: str, user_id=None, is_admin: bool = False, **_ignored) -> AsyncIterator[StreamEvent]:
         import time as _t
         _t0 = _t.monotonic()
         log.info("chat.start session=%s msg_len=%d", session_id, len(message))
@@ -69,7 +69,7 @@ class ConversationEngine:
                 if (d.status.value if hasattr(d.status, "value") else d.status) == "ready"
             ]
             system_prompt = render_system_prompt("A", docs=ready_docs, persona=self.persona)
-            tools_for_llm = self.tools.schemas()
+            tools_for_llm = self.tools.schemas(is_admin=is_admin)
         else:
             system_prompt = render_system_prompt(template, docs=[], persona=self.persona)
             tools_for_llm = None
@@ -197,6 +197,7 @@ class ConversationEngine:
                     _tt = _t.monotonic()
                     result = await self.tools.execute(
                         acc["name"], args, session_id=session_id,
+                        user_id=user_id, is_admin=is_admin,
                     )
                     log.info("chat.tool=%s ok=%s found=%s chunks=%d took=%.2fs",
                              acc["name"], result.get("ok"), result.get("found"),
@@ -213,6 +214,23 @@ class ConversationEngine:
                         "role": "tool", "tool_call_id": acc["id"],
                         "content": json.dumps(result, ensure_ascii=False),
                     })
+
+                    if result.get("status") == "confirmation_required":
+                        yield StreamEvent.confirmation_required(
+                            integration_id=result["integration_id"],
+                            token=result["token"],
+                            summary=result["summary"],
+                        )
+                        await self.mem.save_assistant_message(
+                            session_id,
+                            "已生成接入确认请求，请在前端确认后继续。",
+                            citations=[],
+                            routing={"template": template,
+                                     "confirmation_required": True,
+                                     "integration_id": result["integration_id"]},
+                        )
+                        yield StreamEvent.done()
+                        return
                 continue
 
             break  # finish_reason missing or unexpected

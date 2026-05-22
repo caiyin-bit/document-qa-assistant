@@ -57,6 +57,7 @@ class MeResponse(BaseModel):
     email: str | None
     name: str
     is_demo: bool
+    is_admin: bool = False
 
 
 def _set_session(request: Request, user_id: UUID) -> None:
@@ -98,7 +99,7 @@ def make_auth_router(*, sessionmaker: async_sessionmaker[AsyncSession]) -> APIRo
         await db.commit()
         _set_session(request, user.id)
         return MeResponse(
-            user_id=user.id, email=user.email, name=user.name, is_demo=False,
+            user_id=user.id, email=user.email, name=user.name, is_demo=False, is_admin=user.is_admin,
         )
 
     @router.post("/login", response_model=MeResponse)
@@ -123,7 +124,7 @@ def make_auth_router(*, sessionmaker: async_sessionmaker[AsyncSession]) -> APIRo
             await db.commit()
         _set_session(request, user.id)
         return MeResponse(
-            user_id=user.id, email=user.email, name=user.name, is_demo=False,
+            user_id=user.id, email=user.email, name=user.name, is_demo=False, is_admin=user.is_admin,
         )
 
     @router.post("/logout", status_code=204)
@@ -148,7 +149,7 @@ def make_auth_router(*, sessionmaker: async_sessionmaker[AsyncSession]) -> APIRo
         is_demo = request.session.get("user_id") is None
         return MeResponse(
             user_id=user.id, email=user.email, name=user.name,
-            is_demo=is_demo,
+            is_demo=is_demo, is_admin=user.is_admin,
         )
 
     return router
@@ -174,6 +175,37 @@ def require_user(request: Request) -> UUID:
     if uid is None:
         raise HTTPException(401, "请先登录")
     return uid
+
+
+async def require_admin(request: Request, db: AsyncSession) -> UUID:
+    """FastAPI dependency: 401 if no user, 403 if user is not admin.
+
+    Admin gates system-level platform integration onboarding (registering
+    the whole system into an external platform). A regular tenant user
+    must never reach these tools/endpoints.
+    """
+    if ("session" not in request.scope
+            or request.session.get("user_id") is None):
+        raise HTTPException(403, "需要管理员权限")
+    uid = current_user_id(request)
+    if uid is None:
+        raise HTTPException(401, "请先登录")
+    user = await db.get(User, uid)
+    if user is None or not user.is_admin:
+        raise HTTPException(403, "需要管理员权限")
+    return uid
+
+
+async def is_current_user_admin(request: Request, db: AsyncSession) -> bool:
+    """Non-raising variant used by the chat tool gate."""
+    if ("session" not in request.scope
+            or request.session.get("user_id") is None):
+        return False
+    uid = current_user_id(request)
+    if uid is None:
+        return False
+    user = await db.get(User, uid)
+    return bool(user and user.is_admin)
 
 
 def _name_from_email(email: str) -> str:

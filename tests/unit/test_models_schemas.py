@@ -8,3 +8,11 @@ def test_message_model_has_routing_jsonb_field():
     assert col.nullable is True
     # JSONB is represented as sqlalchemy.dialects.postgresql.JSONB at the type level
     assert "JSONB" in str(col.type).upper()
+
+
+def test_user_has_is_admin_default_false():
+    from src.models.schemas import User
+    # SQLAlchemy column default applies at flush; assert the column exists
+    # and declares the expected Python-side default.
+    assert "is_admin" in User.__table__.columns
+    assert User.__table__.columns["is_admin"].default.arg is False
